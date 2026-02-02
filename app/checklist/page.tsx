@@ -7,7 +7,6 @@ import {
   getEntry,
   logChecklist,
   canLogDate,
-  alreadyLogged,
   getTrackingStartedDate,
   type ChecklistKeys,
 } from "@/lib/storage";
@@ -89,7 +88,7 @@ export default function ChecklistPage() {
 
   const ticked = Object.values(checklist).filter(Boolean).length;
   const countsAsWorkout = ticked >= MIN_FOR_WORKOUT;
-  const locked = !canLogDate(today) || alreadyLogged(today);
+  const locked = !canLogDate(today);
   const progressPct = (ticked / TOTAL_ITEMS) * 100;
 
   if (!mounted) {
@@ -204,7 +203,7 @@ export default function ChecklistPage() {
 
       {locked && (
         <p className="mt-6 text-center text-sm text-amber-400">
-          {alreadyLogged(today) ? "Workout already logged for today." : "You can only log today. Past days are locked."}
+          You can only edit today. Past days are locked.
         </p>
       )}
     </div>

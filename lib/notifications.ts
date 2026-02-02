@@ -1,7 +1,19 @@
 /**
  * Notification copy (no guilt, no motivation quotes — just facts).
- * Schedule is enforced by service worker / background logic.
+ * Schedule uses getNotificationTimes() so users can customize.
  */
+
+const STORAGE_KEY = "before-work-notification-times";
+
+export const DEFAULT_NOTIFICATION_TIMES = {
+  morning: "10:40",
+  beforeWork: "11:45",
+  streakRisk: "12:15",
+} as const;
+
+export type NotificationTimesKey = keyof typeof DEFAULT_NOTIFICATION_TIMES;
+
+export type NotificationTimes = Record<NotificationTimesKey, string>;
 
 export const NOTIFICATION_COPY = {
   morning: {
@@ -17,6 +29,43 @@ export const NOTIFICATION_COPY = {
     body: "Streak at risk. 10 minutes still counts.",
   },
 } as const;
+
+const SCHEDULE_KEYS: NotificationTimesKey[] = ["morning", "beforeWork", "streakRisk"];
+
+function parseTimeHHMM(value: string): { h: number; m: number } | null {
+  if (!/^\d{1,2}:\d{2}$/.test(value)) return null;
+  const [h, m] = value.split(":").map(Number);
+  if (h < 0 || h > 23 || m < 0 || m > 59) return null;
+  return { h, m };
+}
+
+export function getNotificationTimes(): NotificationTimes {
+  if (typeof window === "undefined") return { ...DEFAULT_NOTIFICATION_TIMES };
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return { ...DEFAULT_NOTIFICATION_TIMES };
+    const parsed = JSON.parse(raw) as Partial<Record<NotificationTimesKey, string>>;
+    const out: NotificationTimes = { ...DEFAULT_NOTIFICATION_TIMES };
+    for (const key of SCHEDULE_KEYS) {
+      const val = parsed[key];
+      if (typeof val === "string" && parseTimeHHMM(val)) out[key] = val;
+    }
+    return out;
+  } catch {
+    return { ...DEFAULT_NOTIFICATION_TIMES };
+  }
+}
+
+export function setNotificationTimes(times: Partial<NotificationTimes>): void {
+  if (typeof window === "undefined") return;
+  const current = getNotificationTimes();
+  const next = { ...current };
+  for (const key of SCHEDULE_KEYS) {
+    if (typeof times[key] === "string" && parseTimeHHMM(times[key] as string))
+      next[key] = times[key] as string;
+  }
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+}
 
 export function getNotificationPermission(): NotificationPermission {
   if (typeof window === "undefined" || !("Notification" in window)) return "denied";
@@ -40,20 +89,23 @@ export function showNotification(title: string, body: string, icon = "/icon-192.
   }
 }
 
-/** Schedule today's reminder notifications (10:40, 11:45, 12:15). Call after permission is granted. */
+/** Schedule today's reminder notifications using saved times. Call after permission is granted. */
 export function scheduleTodayNotifications(): void {
   if (typeof window === "undefined" || !("Notification" in window) || Notification.permission !== "granted") return;
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth();
   const date = now.getDate();
-  const at = (h: number, m: number) => new Date(year, month, date, h, m, 0);
+  const times = getNotificationTimes();
   const schedule = [
-    { time: at(10, 40), ...NOTIFICATION_COPY.morning },
-    { time: at(11, 45), ...NOTIFICATION_COPY.afterWindow },
-    { time: at(12, 15), ...NOTIFICATION_COPY.streakRisk },
-  ] as const;
-  for (const { time, title, body } of schedule) {
+    { ...NOTIFICATION_COPY.morning, timeStr: times.morning },
+    { ...NOTIFICATION_COPY.afterWindow, timeStr: times.beforeWork },
+    { ...NOTIFICATION_COPY.streakRisk, timeStr: times.streakRisk },
+  ];
+  for (const { timeStr, title, body } of schedule) {
+    const parsed = parseTimeHHMM(timeStr);
+    if (!parsed) continue;
+    const time = new Date(year, month, date, parsed.h, parsed.m, 0);
     if (time.getTime() <= now.getTime()) continue;
     const delay = time.getTime() - now.getTime();
     setTimeout(() => {

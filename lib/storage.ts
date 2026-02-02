@@ -132,7 +132,11 @@ export function logWorkoutCompleted(dateKey: string): void {
   if (!canLogDate(dateKey)) return;
   if (alreadyLogged(dateKey)) return;
   const data = getWorkouts();
-  data[dateKey] = { completed: true };
+  const existing = data[dateKey];
+  data[dateKey] = {
+    completed: true,
+    checklist: existing?.checklist,
+  };
   setWorkouts(data);
 }
 

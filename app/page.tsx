@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   getTodayKey,
   getCurrentStreak,
@@ -17,7 +18,14 @@ import {
   setTrackingStarted,
 } from "@/lib/storage";
 import { getQuoteOfTheDay } from "@/lib/quotes";
-import { requestNotificationPermission, getNotificationPermission, scheduleTodayNotifications } from "@/lib/notifications";
+import {
+  requestNotificationPermission,
+  getNotificationPermission,
+  scheduleTodayNotifications,
+  getNotificationTimes,
+  setNotificationTimes,
+  type NotificationTimes,
+} from "@/lib/notifications";
 import { WorkoutMusicWidget } from "@/components/WorkoutMusicWidget";
 import { AshamedModal } from "@/components/AshamedModal";
 
@@ -49,6 +57,7 @@ function getWorkoutStatusVariant(
 }
 
 export default function HomePage() {
+  const pathname = usePathname();
   const today = getTodayKey();
   const [trackingStarted, setTrackingStartedState] = useState<boolean | null>(null);
   const [logged, setLogged] = useState(false);
@@ -58,6 +67,9 @@ export default function HomePage() {
   const [ashamedOpen, setAshamedOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>("default");
+  const [reminderTimes, setReminderTimes] = useState<NotificationTimes | null>(null);
+  const [showCustomizeTimes, setShowCustomizeTimes] = useState(false);
+  const [customTimes, setCustomTimes] = useState<NotificationTimes>({ morning: "10:40", beforeWork: "11:45", streakRisk: "12:15" });
 
   const refresh = useCallback(() => {
     setTrackingStartedState(!!getTrackingStartedDate());
@@ -73,8 +85,14 @@ export default function HomePage() {
   }, [refresh]);
 
   useEffect(() => {
+    if (pathname === "/") refresh();
+  }, [pathname, refresh]);
+
+  useEffect(() => {
     if (!mounted) return;
     setNotificationPermission(getNotificationPermission());
+    setReminderTimes(getNotificationTimes());
+    setCustomTimes(getNotificationTimes());
   }, [mounted]);
 
   const handleStartImprovement = () => {
@@ -97,6 +115,13 @@ export default function HomePage() {
     const perm = await requestNotificationPermission();
     setNotificationPermission(perm);
     if (perm === "granted") scheduleTodayNotifications();
+  };
+
+  const handleSaveReminderTimes = () => {
+    setNotificationTimes(customTimes);
+    setReminderTimes(getNotificationTimes());
+    setShowCustomizeTimes(false);
+    if (notificationPermission === "granted") scheduleTodayNotifications();
   };
 
   const displayDate = new Date().toLocaleDateString("en-US", {
@@ -143,10 +168,12 @@ export default function HomePage() {
   }
 
   const statusStyles = {
-    green: "border-accent/50 bg-accent/10",
-    grey: "border-slate-700/40 bg-slate-800/40",
-    red: "border-red-500/50 bg-red-500/10",
+    green: "border-accent/60 bg-accent/15",
+    grey: "border-slate-600/50 bg-slate-800/50",
+    red: "border-red-500/60 bg-red-500/15",
   };
+
+  const statusLabel = logged ? "Completed" : isRestDay(today) ? "Rest day" : "Not logged";
 
   return (
     <>
@@ -156,42 +183,54 @@ export default function HomePage() {
         }`}
       >
         <div className="mx-auto max-w-md px-4 pt-6 pb-8">
-          <p className="font-display text-2xl uppercase leading-tight tracking-wide text-white/95 md:text-3xl" aria-label="Daily motivation">
-            {quote}
-          </p>
-          <p className="mt-2 text-sm text-slate-400">{displayDate}</p>
+          <p className="text-center text-sm text-slate-500">{displayDate}</p>
 
-          <WorkoutMusicWidget dateKey={today} />
-
+          {/* Hero: workout status — eyes land here first */}
           <section
-            className={`mt-8 rounded-2xl border p-6 shadow-lg ${statusStyles[statusVariant]} ${
+            className={`mt-4 rounded-3xl border-2 px-6 py-8 shadow-xl ${statusStyles[statusVariant]} ${
+              statusVariant === "green" ? "shadow-lg" : ""
+            } ${statusVariant === "red" ? "shadow-lg" : ""} ${
               approachingEnd ? "animate-pulse" : ""
             }`}
+            aria-label={`Workout status: ${statusLabel}`}
           >
-            <p className="text-sm font-medium text-slate-400">Workout status</p>
-            {logged ? (
-              <p className="mt-2 flex items-center gap-2 text-accent">
-                <span className="h-2 w-2 shrink-0 rounded-full bg-accent" aria-hidden />
-                <span className="font-semibold">Completed</span>
-              </p>
-            ) : isRestDay(today) ? (
-              <p className="mt-2 flex items-center gap-2 text-slate-400">
-                <span className="h-2 w-2 shrink-0 rounded-full bg-slate-500" aria-hidden />
-                <span>Rest day</span>
-              </p>
-            ) : (
-              <p className={`mt-2 flex items-center gap-2 ${isDanger ? "text-red-300" : "text-slate-400"}`}>
-                <span className={`h-2 w-2 shrink-0 rounded-full ${isDanger ? "bg-red-400" : "border-2 border-slate-500"}`} aria-hidden />
-                <span>Not logged</span>
-              </p>
-            )}
+            <div className="flex flex-col items-center text-center">
+              {logged ? (
+                <>
+                  <p className="text-2xl font-bold uppercase tracking-wide text-accent md:text-3xl">
+                    Completed
+                  </p>
+                  <p className="mt-1 text-sm text-accent/80">You moved today.</p>
+                </>
+              ) : isRestDay(today) ? (
+                <>
+                  <p className="text-2xl font-bold uppercase tracking-wide text-slate-400 md:text-3xl">
+                    Rest day
+                  </p>
+                  <p className="mt-1 text-sm text-slate-500">No workout required.</p>
+                </>
+              ) : (
+                <>
+                  <p
+                    className={`text-2xl font-bold uppercase tracking-wide md:text-3xl ${
+                      isDanger ? "text-red-200" : "text-slate-300"
+                    }`}
+                  >
+                    Not logged
+                  </p>
+                  <p className={`mt-1 text-sm ${isDanger ? "text-red-300/90" : "text-slate-500"}`}>
+                    {isDanger ? "Log now to stay on track." : "Tap below when you’re done."}
+                  </p>
+                </>
+              )}
+            </div>
 
             {!logged && !isRestDay(today) && (
               <div className="mt-6 flex flex-col gap-3">
                 <button
                   type="button"
                   onClick={handleLog}
-                  className="w-full rounded-xl bg-accent py-3.5 font-semibold text-surface shadow-md shadow-accent/20 transition hover:bg-green-400 hover:shadow-accent/30 active:scale-[0.98]"
+                  className="w-full rounded-2xl bg-accent py-4 text-lg font-semibold text-surface shadow-lg shadow-accent/25 transition hover:bg-green-400 hover:shadow-accent/35 active:scale-[0.98]"
                 >
                   Log Workout
                 </button>
@@ -202,6 +241,16 @@ export default function HomePage() {
             )}
           </section>
 
+          <div className="mt-6 flex items-start justify-center gap-1 text-center" aria-label="Daily motivation">
+            <span className="font-serif text-4xl leading-none text-white/50 md:text-5xl" aria-hidden>"</span>
+            <p className="flex-1 font-display text-lg uppercase leading-tight tracking-wide text-white/70 md:text-xl">
+              {quote}
+            </p>
+            <span className="font-serif text-4xl leading-none text-white/50 md:text-5xl" aria-hidden>"</span>
+          </div>
+
+          <WorkoutMusicWidget dateKey={today} />
+
           <section className="mt-6 flex items-center justify-center gap-2 rounded-xl bg-slate-800/30 py-4">
             <span className="text-xl font-bold text-white">{streak}</span>
             <span className="text-slate-400">day streak</span>
@@ -210,14 +259,79 @@ export default function HomePage() {
           <section className="mt-6 rounded-xl border border-slate-700/40 bg-slate-800/40 px-4 py-3">
             <p className="text-sm font-medium text-slate-400">Reminders</p>
             {notificationPermission === "granted" ? (
-              <p className="mt-1 text-sm text-accent">Notifications enabled (10:40, 11:45, 12:15)</p>
+              <>
+                <p className="mt-1 text-sm text-accent">
+                  Notifications enabled
+                  {reminderTimes && ` (${reminderTimes.morning}, ${reminderTimes.beforeWork}, ${reminderTimes.streakRisk})`}
+                </p>
+                {!showCustomizeTimes ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowCustomizeTimes(true)}
+                    className="mt-2 text-xs text-slate-400 underline hover:text-slate-300"
+                  >
+                    Customize times
+                  </button>
+                ) : (
+                  <div className="mt-3 space-y-2 rounded-lg border border-slate-600/50 bg-slate-800/50 p-3">
+                    <p className="text-xs text-slate-400">Set your reminder times (not everyone has the same routine)</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <label className="block text-xs text-slate-500">Start</label>
+                        <input
+                          type="time"
+                          value={customTimes.morning}
+                          onChange={(e) => setCustomTimes((t) => ({ ...t, morning: e.target.value }))}
+                          className="mt-0.5 w-full rounded border border-slate-600 bg-slate-800 px-2 py-1.5 text-sm text-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-slate-500">Before work</label>
+                        <input
+                          type="time"
+                          value={customTimes.beforeWork}
+                          onChange={(e) => setCustomTimes((t) => ({ ...t, beforeWork: e.target.value }))}
+                          className="mt-0.5 w-full rounded border border-slate-600 bg-slate-800 px-2 py-1.5 text-sm text-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-slate-500">Last chance</label>
+                        <input
+                          type="time"
+                          value={customTimes.streakRisk}
+                          onChange={(e) => setCustomTimes((t) => ({ ...t, streakRisk: e.target.value }))}
+                          className="mt-0.5 w-full rounded border border-slate-600 bg-slate-800 px-2 py-1.5 text-sm text-white"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={handleSaveReminderTimes}
+                        className="rounded border border-accent/50 bg-accent/20 px-3 py-1.5 text-xs font-medium text-accent"
+                      >
+                        Save
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setShowCustomizeTimes(false); setCustomTimes(getNotificationTimes()); }}
+                        className="text-xs text-slate-400 hover:text-slate-300"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
             ) : notificationPermission === "denied" ? (
               <p className="mt-1 text-sm text-slate-400">
                 Notifications are blocked. Enable them in your browser settings (e.g. lock icon in the address bar) to get workout reminders.
               </p>
             ) : (
               <>
-                <p className="mt-1 text-sm text-slate-400">Get workout reminders at 10:40, 11:45, 12:15</p>
+                <p className="mt-1 text-sm text-slate-400">
+                  Get workout reminders at your chosen times (customize after enabling).
+                </p>
                 <button
                   type="button"
                   onClick={handleEnableNotifications}
