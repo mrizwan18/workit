@@ -1,0 +1,16 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --surface: #0f172a;
+  --accent: #22c55e;
+  --danger: #ef4444;
+  --muted: #64748b;
+}
+
+body {
+  background: linear-gradient(180deg, var(--surface) 0%, #0c1222 100%);
+  color: #e2e8f0;
+  min-height: 100dvh;
+}
