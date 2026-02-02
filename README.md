@@ -68,9 +68,17 @@ The app **can publish notifications** for workouts:
 
 Current flow: on load, the app requests permission, then schedules the three times for today. When the app is closed or the tab is killed, the timers stop. So notifications are “open app at least once that day to get reminders.”
 
-## Icons
+## Icons (required for PWA install)
 
-Add `public/icon-192.png` (192×192) and `public/icon-512.png` (512×512). Use theme color `#22c55e`. Any image editor or [favicon.io](https://favicon.io) works. Without these, the app still runs; install prompt may show a default icon.
+The repo includes **`public/icon-192.png`** (192×192) and **`public/icon-512.png`** (512×512), a green (#22c55e) rounded square. They were generated with:
+
+```bash
+npm run generate-icons
+```
+
+(Requires `sharp`; run `npm install` first.) To use your own art, replace the files in `public/` or edit `scripts/generate-icons.js` and run the script again.
+
+**Important for deploy:** If these icons return 404 on your deployed site, Chrome will **not** offer “Install app” and will only add a **shortcut**. Ensure both files are deployed.
 
 ## Phase 2 (optional)
 

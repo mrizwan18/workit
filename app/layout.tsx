@@ -3,6 +3,7 @@ import { Bebas_Neue } from "next/font/google";
 import "./globals.css";
 import { Nav } from "@/components/Nav";
 import { NotificationSetup } from "@/components/NotificationSetup";
+import { InstallBanner } from "@/components/InstallBanner";
 
 const bebas = Bebas_Neue({ weight: "400", subsets: ["latin"], variable: "--font-bebas" });
 
@@ -29,6 +30,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className={`${bebas.variable} antialiased font-sans`}>
         <NotificationSetup />
+        <InstallBanner />
         <main className="min-h-dvh pb-20">{children}</main>
         <Nav />
       </body>

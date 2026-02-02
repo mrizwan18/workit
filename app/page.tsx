@@ -17,7 +17,7 @@ import {
   setTrackingStarted,
 } from "@/lib/storage";
 import { getQuoteOfTheDay } from "@/lib/quotes";
-import { requestNotificationPermission } from "@/lib/notifications";
+import { requestNotificationPermission, getNotificationPermission, scheduleTodayNotifications } from "@/lib/notifications";
 import { WorkoutMusicWidget } from "@/components/WorkoutMusicWidget";
 import { AshamedModal } from "@/components/AshamedModal";
 
@@ -57,6 +57,7 @@ export default function HomePage() {
   const [permanentDanger, setPermanentDanger] = useState(false);
   const [ashamedOpen, setAshamedOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>("default");
 
   const refresh = useCallback(() => {
     setTrackingStartedState(!!getTrackingStartedDate());
@@ -73,7 +74,7 @@ export default function HomePage() {
 
   useEffect(() => {
     if (!mounted) return;
-    requestNotificationPermission();
+    setNotificationPermission(getNotificationPermission());
   }, [mounted]);
 
   const handleStartImprovement = () => {
@@ -90,6 +91,12 @@ export default function HomePage() {
   const handleAshamedConfirm = () => {
     recordReset();
     refresh();
+  };
+
+  const handleEnableNotifications = async () => {
+    const perm = await requestNotificationPermission();
+    setNotificationPermission(perm);
+    if (perm === "granted") scheduleTodayNotifications();
   };
 
   const displayDate = new Date().toLocaleDateString("en-US", {
@@ -198,6 +205,28 @@ export default function HomePage() {
           <section className="mt-6 flex items-center justify-center gap-2 rounded-xl bg-slate-800/30 py-4">
             <span className="text-xl font-bold text-white">{streak}</span>
             <span className="text-slate-400">day streak</span>
+          </section>
+
+          <section className="mt-6 rounded-xl border border-slate-700/40 bg-slate-800/40 px-4 py-3">
+            <p className="text-sm font-medium text-slate-400">Reminders</p>
+            {notificationPermission === "granted" ? (
+              <p className="mt-1 text-sm text-accent">Notifications enabled (10:40, 11:45, 12:15)</p>
+            ) : notificationPermission === "denied" ? (
+              <p className="mt-1 text-sm text-slate-400">
+                Notifications are blocked. Enable them in your browser settings (e.g. lock icon in the address bar) to get workout reminders.
+              </p>
+            ) : (
+              <>
+                <p className="mt-1 text-sm text-slate-400">Get workout reminders at 10:40, 11:45, 12:15</p>
+                <button
+                  type="button"
+                  onClick={handleEnableNotifications}
+                  className="mt-3 w-full rounded-lg border border-slate-600 py-2.5 text-sm font-medium text-slate-300 transition hover:bg-slate-700/50"
+                >
+                  Enable notifications
+                </button>
+              </>
+            )}
           </section>
 
           {atRisk && !logged && !isRestDay(today) && !permanentDanger && (
