@@ -2,6 +2,12 @@
 
 Minimal PWA: daily workout check-in, streak, zero friction. No calorie tracking, no social, no fancy analytics.
 
+<img width="1508" height="765" alt="image" src="https://github.com/user-attachments/assets/264a96ba-cd55-4dd6-8a81-da8f59e2c29c" />
+<img width="1511" height="768" alt="image" src="https://github.com/user-attachments/assets/15bd9548-dc5d-4f2f-a556-df9945cf3ac3" />
+<img width="1508" height="767" alt="image" src="https://github.com/user-attachments/assets/d47f7a1b-c8fc-46d6-9e10-04da2b98b6e0" />
+
+
+
 ## What it does
 
 - **Home**: Today’s date, workout status (Not logged / Completed), “Log Workout” button, streak counter. Optional “Streak at risk” warning.
