@@ -72,6 +72,7 @@ export default function HomePage() {
   const [reminderTimes, setReminderTimes] = useState<NotificationTimes | null>(null);
   const [showCustomizeTimes, setShowCustomizeTimes] = useState(false);
   const [customTimes, setCustomTimes] = useState<NotificationTimes>({ morning: "10:40", beforeWork: "11:45", streakRisk: "12:15" });
+  const [pushSubscribeError, setPushSubscribeError] = useState<string | null>(null);
 
   const refresh = useCallback(() => {
     setTrackingStartedState(!!getTrackingStartedDate());
@@ -114,22 +115,32 @@ export default function HomePage() {
   };
 
   const handleEnableNotifications = async () => {
+    setPushSubscribeError(null);
     const perm = await requestNotificationPermission();
     setNotificationPermission(perm);
     if (perm === "granted") {
       scheduleTodayNotifications();
-      await subscribeToPush();
+      const result = await subscribeToPush();
+      if (!result.ok) setPushSubscribeError(result.error);
     }
   };
 
-  const handleSaveReminderTimes = () => {
+  const handleSaveReminderTimes = async () => {
+    setPushSubscribeError(null);
     setNotificationTimes(customTimes);
     setReminderTimes(getNotificationTimes());
     setShowCustomizeTimes(false);
     if (notificationPermission === "granted") {
       scheduleTodayNotifications();
-      subscribeToPush();
+      const result = await subscribeToPush();
+      if (!result.ok) setPushSubscribeError(result.error);
     }
+  };
+
+  const handleRetryPushSubscribe = async () => {
+    setPushSubscribeError(null);
+    const result = await subscribeToPush();
+    if (!result.ok) setPushSubscribeError(result.error);
   };
 
   const displayDate = new Date().toLocaleDateString("en-US", {
@@ -364,6 +375,11 @@ export default function HomePage() {
                       </button>
                     </div>
                   </div>
+                )}
+                {pushSubscribeError && (
+                  <p className="mt-2 text-sm text-amber-400">
+                    {pushSubscribeError} <button type="button" onClick={handleRetryPushSubscribe} className="underline">Try again</button>
+                  </p>
                 )}
               </>
             ) : notificationPermission === "denied" ? (

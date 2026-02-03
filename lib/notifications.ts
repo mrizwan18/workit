@@ -103,21 +103,57 @@ function urlBase64ToUint8Array(base64: string): Uint8Array {
   return out;
 }
 
+export type SubscribeToPushResult = { ok: true } | { ok: false; error: string };
+
 /** Subscribe to Web Push and register with the backend for background reminders. */
-export async function subscribeToPush(): Promise<boolean> {
-  if (typeof window === "undefined" || !("serviceWorker" in navigator) || !("PushManager" in window)) return false;
-  if (Notification.permission !== "granted") return false;
-  try {
-    const reg = await navigator.serviceWorker.ready;
-    if (!reg.pushManager) return false;
-    const vapidRes = await fetch("/api/push-vapid");
-    if (!vapidRes.ok) return false;
-    const { publicKey } = (await vapidRes.json()) as { publicKey?: string };
-    if (!publicKey) return false;
+export async function subscribeToPush(): Promise<SubscribeToPushResult> {
+  if (typeof window === "undefined" || !("serviceWorker" in navigator) || !("PushManager" in window)) {
+    return { ok: false, error: "Push not supported" };
+  }
+  if (Notification.permission !== "granted") {
+    return { ok: false, error: "Permission not granted" };
+  }
+  const reg = await navigator.serviceWorker.ready;
+  if (!reg.pushManager) {
+    return { ok: false, error: "PushManager not available" };
+  }
+  const vapidRes = await fetch("/api/push-vapid");
+  if (!vapidRes.ok) {
+    return { ok: false, error: "Failed to get push config" };
+  }
+  const { publicKey } = (await vapidRes.json()) as { publicKey?: string };
+  if (!publicKey) {
+    return { ok: false, error: "Invalid push config" };
+  }
+
+  /** Try to get a push subscription (fails on some mobile until SW controls the page). */
+  const doSubscribe = async (): Promise<PushSubscription> => {
     const sub = await reg.pushManager.subscribe({
       userVisibleOnly: true,
       applicationServerKey: urlBase64ToUint8Array(publicKey) as BufferSource,
     });
+    return sub;
+  };
+
+  let sub: PushSubscription;
+  try {
+    sub = await doSubscribe();
+  } catch (e1) {
+    const msg1 = e1 instanceof Error ? e1.message : String(e1);
+    if (!navigator.serviceWorker.controller) {
+      await new Promise((r) => setTimeout(r, 2000));
+      try {
+        sub = await doSubscribe();
+      } catch (e2) {
+        const msg2 = e2 instanceof Error ? e2.message : String(e2);
+        return { ok: false, error: `Subscribe failed: ${msg2}. Try adding the app to your home screen and opening it from there.` };
+      }
+    } else {
+      return { ok: false, error: `Subscribe failed: ${msg1}` };
+    }
+  }
+
+  try {
     const times = getNotificationTimes();
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || undefined;
     const res = await fetch("/api/push-subscribe", {
@@ -125,9 +161,14 @@ export async function subscribeToPush(): Promise<boolean> {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ subscription: sub.toJSON(), times, timezone }),
     });
-    return res.ok;
-  } catch {
-    return false;
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      return { ok: false, error: (err as { error?: string }).error || `Server error ${res.status}` };
+    }
+    return { ok: true };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: `Failed to register: ${msg}` };
   }
 }
 
