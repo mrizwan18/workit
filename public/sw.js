@@ -42,3 +42,20 @@ self.addEventListener("message", (event) => {
     );
   }
 });
+
+// Background push from server (Web Push): show notification even when app is closed
+self.addEventListener("push", (event) => {
+  if (!(self.Notification && self.Notification.permission === "granted")) return;
+  let title = "Before Work";
+  let body = "Workout reminder.";
+  if (event.data) {
+    try {
+      const data = event.data.json();
+      if (data && typeof data.title === "string") title = sanitize(data.title, MAX_TITLE);
+      if (data && typeof data.body === "string") body = sanitize(data.body, MAX_BODY);
+    } catch (_) {}
+  }
+  event.waitUntil(
+    self.registration.showNotification(title, { body, icon: "/icon-192.png" })
+  );
+});

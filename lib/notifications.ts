@@ -89,6 +89,51 @@ export function showNotification(title: string, body: string, icon = "/icon-192.
   }
 }
 
+/** Show a notification immediately so the user can verify notifications work. */
+export function sendTestNotification(): void {
+  showNotification("Before Work", "Test notification. If you see this, reminders are working.");
+}
+
+/** Base64url to Uint8Array for push subscribe. */
+function urlBase64ToUint8Array(base64: string): Uint8Array {
+  const padding = "=".repeat((4 - (base64.length % 4)) % 4);
+  const b64 = (base64 + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = atob(b64);
+  const out = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+  return out;
+}
+
+/**
+ * Subscribe to Web Push and register with the backend so reminders can fire in the background.
+ * Call after permission is granted and when user saves reminder times.
+ */
+export async function subscribeToPush(): Promise<boolean> {
+  if (typeof window === "undefined" || !("serviceWorker" in navigator) || !("PushManager" in window)) return false;
+  if (Notification.permission !== "granted") return false;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    if (!reg.pushManager) return false;
+    const vapidRes = await fetch("/api/push-vapid");
+    if (!vapidRes.ok) return false;
+    const { publicKey } = (await vapidRes.json()) as { publicKey?: string };
+    if (!publicKey) return false;
+    const sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(publicKey),
+    });
+    const times = getNotificationTimes();
+    const res = await fetch("/api/push-subscribe", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ subscription: sub.toJSON(), times }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 /** Schedule today's reminder notifications using saved times. Call after permission is granted. */
 export function scheduleTodayNotifications(): void {
   if (typeof window === "undefined" || !("Notification" in window) || Notification.permission !== "granted") return;

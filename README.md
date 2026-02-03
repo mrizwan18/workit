@@ -70,7 +70,9 @@ The app **can publish notifications** for workouts:
 
 - **When:** Scheduled at **10:40**, **11:45**, and **12:15** (same day) if the user has granted notification permission.
 - **Copy:** “Workout = commute. Start now.” / “Log your workout before work starts.” / “Streak at risk. 10 minutes still counts.”
-- **Limitation:** These fire only **while the app (or its tab) has been open**; they use in-page `setTimeout`. If the user never opens the app that day, no notification is sent. For reminders when the app is **closed**, you need **Web Push** (backend + Push API + service worker `push` event).
+- **Background (Web Push):** If you deploy with the optional backend, reminders can fire **when the app is closed**. See below for setup.
+
+**Setup for background notifications (optional):** (1) VAPID keys: run `npm run generate-vapid`, add `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` to env. (2) Upstash Redis: set `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`. (3) Vercel Cron calls `/api/cron/send-reminders` every 10 min. Without these, in-page reminders still work; background push will not run.
 
 Current flow: on load, the app requests permission, then schedules the three times for today. When the app is closed or the tab is killed, the timers stop. So notifications are “open app at least once that day to get reminders.”
 

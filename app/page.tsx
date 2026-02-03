@@ -22,8 +22,10 @@ import {
   requestNotificationPermission,
   getNotificationPermission,
   scheduleTodayNotifications,
+  subscribeToPush,
   getNotificationTimes,
   setNotificationTimes,
+  sendTestNotification,
   type NotificationTimes,
 } from "@/lib/notifications";
 import { WorkoutMusicWidget } from "@/components/WorkoutMusicWidget";
@@ -114,14 +116,20 @@ export default function HomePage() {
   const handleEnableNotifications = async () => {
     const perm = await requestNotificationPermission();
     setNotificationPermission(perm);
-    if (perm === "granted") scheduleTodayNotifications();
+    if (perm === "granted") {
+      scheduleTodayNotifications();
+      await subscribeToPush();
+    }
   };
 
   const handleSaveReminderTimes = () => {
     setNotificationTimes(customTimes);
     setReminderTimes(getNotificationTimes());
     setShowCustomizeTimes(false);
-    if (notificationPermission === "granted") scheduleTodayNotifications();
+    if (notificationPermission === "granted") {
+      scheduleTodayNotifications();
+      subscribeToPush();
+    }
   };
 
   const displayDate = new Date().toLocaleDateString("en-US", {
@@ -279,15 +287,33 @@ export default function HomePage() {
                   Notifications enabled
                   {reminderTimes && ` (${reminderTimes.morning}, ${reminderTimes.beforeWork}, ${reminderTimes.streakRisk})`}
                 </p>
-                {!showCustomizeTimes ? (
+                <div className="mt-2 flex flex-wrap items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => setShowCustomizeTimes(true)}
-                    className="mt-2 text-xs text-slate-400 underline hover:text-slate-300"
+                    onClick={sendTestNotification}
+                    className="rounded border border-accent/50 bg-accent/20 px-3 py-1.5 text-xs font-medium text-accent hover:bg-accent/30"
                   >
-                    Customize times
+                    Send test notification
                   </button>
-                ) : (
+                  {!showCustomizeTimes ? (
+                    <button
+                      type="button"
+                      onClick={() => setShowCustomizeTimes(true)}
+                      className="text-xs text-slate-400 underline hover:text-slate-300"
+                    >
+                      Customize times
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setShowCustomizeTimes(false)}
+                      className="text-xs text-slate-400 underline hover:text-slate-300"
+                    >
+                      Hide times
+                    </button>
+                  )}
+                </div>
+                {!showCustomizeTimes ? null : (
                   <div className="mt-3 space-y-2 rounded-lg border border-slate-600/50 bg-slate-800/50 p-3">
                     <p className="text-xs text-slate-400">Set your reminder times (not everyone has the same routine)</p>
                     <div className="grid grid-cols-3 gap-2">
