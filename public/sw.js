@@ -38,7 +38,7 @@ self.addEventListener("message", (event) => {
     const body = sanitize(String(event.data.body || ""), MAX_BODY);
     const icon = typeof event.data.icon === "string" && event.data.icon.startsWith("/") ? event.data.icon : "/icon-192.png";
     event.waitUntil(
-      self.registration.showNotification(title, { body, icon })
+      self.registration.showNotification(title, { body, icon, tag: "before-work-reminder", renotify: true })
     );
   }
 });

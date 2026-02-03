@@ -79,14 +79,27 @@ export async function requestNotificationPermission(): Promise<NotificationPermi
   return Notification.requestPermission();
 }
 
-export function showNotification(title: string, body: string, icon = "/icon-192.png"): void {
-  if (typeof window === "undefined" || !("Notification" in window)) return;
-  if (Notification.permission !== "granted") return;
-  try {
-    new Notification(title, { body, icon });
-  } catch {
-    // ignore
+/** Ask the service worker to show a notification (OS-level; works when tab is in background). */
+function showNotificationViaSW(title: string, body: string, icon = "/icon-192.png"): void {
+  if (typeof window === "undefined" || !("Notification" in window) || Notification.permission !== "granted") return;
+  if (!("serviceWorker" in navigator)) {
+    try {
+      new Notification(title, { body, icon });
+    } catch {
+      // ignore
+    }
+    return;
   }
+  navigator.serviceWorker.ready.then((reg) => {
+    if (reg.active) reg.active.postMessage({ type: "SHOW_NOTIFICATION", title, body, icon });
+    else try { new Notification(title, { body, icon }); } catch { /* ignore */ }
+  }).catch(() => {
+    try { new Notification(title, { body, icon }); } catch { /* ignore */ }
+  });
+}
+
+export function showNotification(title: string, body: string, icon = "/icon-192.png"): void {
+  showNotificationViaSW(title, body, icon);
 }
 
 /** Show a notification immediately so the user can verify notifications work. */
@@ -194,7 +207,7 @@ export function scheduleTodayNotifications(): void {
     const delay = time.getTime() - now.getTime();
     setTimeout(() => {
       if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
-        new Notification(title, { body, icon: "/icon-192.png" });
+        showNotificationViaSW(title, body, "/icon-192.png");
       }
     }, delay);
   }

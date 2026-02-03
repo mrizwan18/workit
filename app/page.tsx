@@ -22,7 +22,6 @@ import {
   requestNotificationPermission,
   getNotificationPermission,
   scheduleTodayNotifications,
-  subscribeToPush,
   getNotificationTimes,
   setNotificationTimes,
   sendTestNotification,
@@ -72,7 +71,6 @@ export default function HomePage() {
   const [reminderTimes, setReminderTimes] = useState<NotificationTimes | null>(null);
   const [showCustomizeTimes, setShowCustomizeTimes] = useState(false);
   const [customTimes, setCustomTimes] = useState<NotificationTimes>({ morning: "10:40", beforeWork: "11:45", streakRisk: "12:15" });
-  const [pushSubscribeError, setPushSubscribeError] = useState<string | null>(null);
 
   const refresh = useCallback(() => {
     setTrackingStartedState(!!getTrackingStartedDate());
@@ -115,32 +113,16 @@ export default function HomePage() {
   };
 
   const handleEnableNotifications = async () => {
-    setPushSubscribeError(null);
     const perm = await requestNotificationPermission();
     setNotificationPermission(perm);
-    if (perm === "granted") {
-      scheduleTodayNotifications();
-      const result = await subscribeToPush();
-      if (!result.ok) setPushSubscribeError(result.error);
-    }
+    if (perm === "granted") scheduleTodayNotifications();
   };
 
-  const handleSaveReminderTimes = async () => {
-    setPushSubscribeError(null);
+  const handleSaveReminderTimes = () => {
     setNotificationTimes(customTimes);
     setReminderTimes(getNotificationTimes());
     setShowCustomizeTimes(false);
-    if (notificationPermission === "granted") {
-      scheduleTodayNotifications();
-      const result = await subscribeToPush();
-      if (!result.ok) setPushSubscribeError(result.error);
-    }
-  };
-
-  const handleRetryPushSubscribe = async () => {
-    setPushSubscribeError(null);
-    const result = await subscribeToPush();
-    if (!result.ok) setPushSubscribeError(result.error);
+    if (notificationPermission === "granted") scheduleTodayNotifications();
   };
 
   const displayDate = new Date().toLocaleDateString("en-US", {
@@ -298,6 +280,7 @@ export default function HomePage() {
                   Notifications enabled
                   {reminderTimes && ` (${reminderTimes.morning}, ${reminderTimes.beforeWork}, ${reminderTimes.streakRisk})`}
                 </p>
+                <p className="mt-0.5 text-xs text-slate-500">Reminders fire at these times when the app or tab is open.</p>
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   {process.env.NODE_ENV === "development" && (
                     <button
@@ -374,19 +357,6 @@ export default function HomePage() {
                         Cancel
                       </button>
                     </div>
-                  </div>
-                )}
-                {pushSubscribeError && (
-                  <div className="mt-2 text-sm text-amber-400">
-                    <p>{pushSubscribeError}</p>
-                    {/push service error|registration failed/i.test(pushSubscribeError) && (
-                      <p className="mt-1 text-amber-400/90">
-                        Often fixed by: add this app to your home screen and open from there (iOS); try another network or disable VPN; or retry later.
-                      </p>
-                    )}
-                    <p className="mt-1">
-                      <button type="button" onClick={handleRetryPushSubscribe} className="underline">Try again</button>
-                    </p>
                   </div>
                 )}
               </>
