@@ -10,7 +10,6 @@ function isAuthorized(request: NextRequest): boolean {
   return !!(CRON_SECRET && auth === `Bearer ${CRON_SECRET}`);
 }
 
-/** Current time as HH:MM in the given IANA timezone, or UTC if invalid/missing. */
 function nowHHMMInZone(timezone?: string): string {
   const d = new Date();
   if (timezone) {
@@ -18,15 +17,14 @@ function nowHHMMInZone(timezone?: string): string {
       const s = d.toLocaleTimeString("en-CA", { timeZone: timezone, hour12: false, hour: "2-digit", minute: "2-digit" });
       if (s && /^\d{1,2}:\d{2}$/.test(s)) return s;
     } catch {
-      // fallback to UTC
+      // fallback
     }
   }
   const h = d.getUTCHours();
   const m = d.getUTCMinutes();
-  return `${h}:${m.toString().padStart(2, "0")}`;
+  return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
 }
 
-/** Today's date as YYYY-MM-DD in the given timezone, or UTC if invalid/missing. */
 function todayKeyInZone(timezone?: string): string {
   if (timezone) {
     try {
@@ -53,6 +51,7 @@ function getCopy(key: ReminderKey): { title: string; body: string } {
   return NOTIFICATION_COPY.streakRisk;
 }
 
+/** Legacy cron route. Prefer GET /api/send-due-notifications (exact-minute match, 404/410 cleanup). */
 export async function GET(request: NextRequest) {
   if (!isAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -63,6 +62,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ ok: true, sent: 0, subs: 0 });
   }
 
+  const todayKey = todayKeyInZone();
   const updated: StoredSubscription[] = [];
   let sent = 0;
 
@@ -70,27 +70,24 @@ export async function GET(request: NextRequest) {
     const tz = sub.timezone;
     const today = todayKeyInZone(tz);
     const now = nowHHMMInZone(tz);
-    let lastSent = sub.lastSent?.date === today ? { ...sub.lastSent } : { date: today, morning: false, beforeWork: false, streakRisk: false };
+    const lastSent = { ...(sub.lastSent ?? {}) };
     let changed = false;
 
     for (const key of REMINDER_ORDER) {
       const timeStr = sub.times[key];
-      if (lastSent[key]) continue;
+      if (lastSent[key] === today) continue;
       if (!timeGte(now, timeStr)) continue;
 
       const { title, body } = getCopy(key);
-      const ok = await sendPushNotification(sub.subscription, { title, body });
-      if (ok) {
-        lastSent[key] = true;
+      const result = await sendPushNotification(sub, { title, body, url: "/" });
+      if (result.ok) {
+        lastSent[key] = today;
         changed = true;
         sent++;
       }
     }
 
-    updated.push({
-      ...sub,
-      lastSent: changed ? lastSent : sub.lastSent,
-    });
+    updated.push({ ...sub, lastSent: changed ? lastSent : sub.lastSent });
   }
 
   await saveSubscriptions(updated);

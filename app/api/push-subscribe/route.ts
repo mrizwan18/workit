@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getStoredSubscriptions, getStoredSubscriptionsOrError, saveSubscriptions, isPushConfigured, type StoredSubscription } from "@/lib/push-server";
+import {
+  getStoredSubscriptions,
+  saveSubscriptions,
+  isPushConfigured,
+  subscriptionId,
+  type StoredSubscription,
+} from "@/lib/push-server";
 
 type NotificationTimes = { morning: string; beforeWork: string; streakRisk: string };
 
@@ -47,35 +53,24 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Missing or invalid subscription or times" }, { status: 400 });
   }
   const tz = typeof timezone === "string" && timezone.length > 0 && timezone.length <= 64 ? timezone : undefined;
+  const endpoint = subscription.endpoint;
+  const id = subscriptionId(endpoint);
+  const now = new Date().toISOString();
 
   const subs = await getStoredSubscriptions();
-  const endpoint = subscription.endpoint;
-  const existing = subs.find((s) => s.endpoint === endpoint);
+  const existing = subs.find((s) => s.id === id || s.endpoint === endpoint);
   const entry: StoredSubscription = {
+    id,
     endpoint,
-    subscription: {
-      endpoint: subscription.endpoint,
-      keys: { p256dh: subscription.keys.p256dh, auth: subscription.keys.auth },
-      expirationTime: (subscription as { expirationTime?: number | null }).expirationTime ?? null,
-    },
+    keys: { p256dh: subscription.keys.p256dh, auth: subscription.keys.auth },
     times: { morning: times.morning, beforeWork: times.beforeWork, streakRisk: times.streakRisk },
     timezone: tz,
+    createdAt: existing?.createdAt ?? now,
     lastSent: existing?.lastSent,
   };
-  const next = subs.filter((s) => s.endpoint !== endpoint);
+  const next = subs.filter((s) => s.id !== id && s.endpoint !== endpoint);
   next.push(entry);
-  const writeOk = await saveSubscriptions(next);
+  await saveSubscriptions(next);
 
-  // Read back so client can confirm the write (same Redis check-redis uses)
-  const { subs: after, error: readError } = await getStoredSubscriptionsOrError();
-  const res: { ok: boolean; subsCount: number; debug?: string; writeOk?: boolean; readError?: string } = {
-    ok: true,
-    subsCount: after.length,
-    writeOk,
-  };
-  if (after.length === 0 && next.length > 0) {
-    res.debug = "redis_ok_but_read_empty";
-    if (readError) res.readError = readError;
-  }
-  return NextResponse.json(res);
+  return NextResponse.json({ ok: true });
 }

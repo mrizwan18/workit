@@ -116,6 +116,21 @@ function urlBase64ToUint8Array(base64: string): Uint8Array {
   return out;
 }
 
+/** Validate VAPID public key: base64url decode and expect 65 bytes (uncompressed P-256). */
+function validateVapidPublicKey(publicKey: string): { ok: true; key: Uint8Array } | { ok: false; error: string } {
+  const trimmed = publicKey.trim();
+  if (!trimmed) return { ok: false, error: "Push key is missing. Please try again later." };
+  try {
+    const key = urlBase64ToUint8Array(trimmed);
+    if (key.length !== 65) {
+      return { ok: false, error: "Push key is invalid. Please refresh and try again." };
+    }
+    return { ok: true, key };
+  } catch {
+    return { ok: false, error: "Push key is invalid. Please refresh and try again." };
+  }
+}
+
 export type SubscribeToPushResult = { ok: true } | { ok: false; error: string };
 
 /** Subscribe to Web Push and register with the backend for background reminders. */
@@ -134,18 +149,21 @@ export async function subscribeToPush(): Promise<SubscribeToPushResult> {
   if (!vapidRes.ok) {
     return { ok: false, error: "Failed to get push config" };
   }
-  const { publicKey } = (await vapidRes.json()) as { publicKey?: string };
-  if (!publicKey) {
+  const { publicKey: rawKey } = (await vapidRes.json()) as { publicKey?: string };
+  if (!rawKey) {
     return { ok: false, error: "Invalid push config" };
   }
+  const validated = validateVapidPublicKey(rawKey);
+  if (!validated.ok) return { ok: false, error: validated.error };
+  const applicationServerKey = validated.key as BufferSource;
 
-  /** Try to get a push subscription (fails on some mobile until SW controls the page). */
   const doSubscribe = async (): Promise<PushSubscription> => {
-    const sub = await reg.pushManager.subscribe({
+    const existing = await reg.pushManager.getSubscription();
+    if (existing) return existing;
+    return reg.pushManager.subscribe({
       userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(publicKey) as BufferSource,
+      applicationServerKey,
     });
-    return sub;
   };
 
   let sub: PushSubscription;
@@ -158,9 +176,10 @@ export async function subscribeToPush(): Promise<SubscribeToPushResult> {
       try {
         sub = await doSubscribe();
       } catch (e2) {
-        const e = e2 as any;
-        const msg2 = e2 instanceof Error ? e2.message : String(e2);
-        return { ok: false, error: `Subscribe failed: ${e?.name || "Error"} - ${e?.message || String(e2)}` };
+        return {
+          ok: false,
+          error: `Subscribe failed: ${e2 instanceof Error ? e2.message : String(e2)}. Try adding the app to your home screen and opening it from there, or reload the page and try again.`,
+        };
       }
     } else {
       return { ok: false, error: `Subscribe failed: ${msg1}` };
@@ -184,6 +203,32 @@ export async function subscribeToPush(): Promise<SubscribeToPushResult> {
     const msg = e instanceof Error ? e.message : String(e);
     return { ok: false, error: `Failed to register: ${msg}` };
   }
+}
+
+/** Unsubscribe from push and remove from backend. */
+export async function unsubscribeToPush(): Promise<boolean> {
+  if (typeof window === "undefined" || !("serviceWorker" in navigator) || !("PushManager" in window)) return false;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if (sub) {
+      await sub.unsubscribe();
+      await fetch("/api/push-unsubscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ endpoint: sub.endpoint }),
+      });
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Reset notifications: unsubscribe then resubscribe (fixes stuck or expired state). */
+export async function resetNotifications(): Promise<SubscribeToPushResult> {
+  await unsubscribeToPush();
+  return subscribeToPush();
 }
 
 /** Schedule today's reminder notifications using saved times. Call after permission is granted. */

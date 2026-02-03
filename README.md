@@ -71,11 +71,40 @@ The app **can publish notifications** for workouts:
 - **When:** Scheduled at **10:40**, **11:45**, and **12:15** (same day) if the user has granted notification permission.
 - **Copy:** “Workout = commute. Start now.” / “Log your workout before work starts.” / “Streak at risk. 10 minutes still counts.”
 - **In-page:** Reminders run while the app (or its tab) is open via in-page timers.
-- **Background (optional):** With env vars and an external cron, reminders can fire when the app is closed. Setup: (1) Run `npm run generate-vapid`, add `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` to Vercel env. (2) Add Upstash Redis: set `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`. (3) Set `CRON_SECRET` in Vercel. (4) Use an external cron (e.g. [cron-job.org](https://cron-job.org)) to call `GET https://your-app.vercel.app/api/cron/send-reminders` every 10 minutes with header `Authorization: Bearer <CRON_SECRET>`. No `vercel.json` is used, so deployment is unaffected.
+- **Background (Vercel Cron):** Reminders can fire when the app/tab is closed (Android Chrome, etc.). `vercel.json` defines a cron that runs every minute and calls `GET /api/send-due-notifications`. **Env vars:** `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` (base64url from `npm run generate-vapid`), `PUSH_CONTACT_EMAIL` (e.g. `mailto:you@example.com`), `CRON_SECRET`, `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`. The cron is protected by `Authorization: Bearer <CRON_SECRET>` or `?secret=<CRON_SECRET>`.
 
   **If cron returns `subs: 0`:** Subscriptions are stored in the Redis of the **origin that served the subscribe request**. Enable notifications from your **production** app URL (the same domain you use for cron). If you enabled them on localhost or a Preview URL, those subs live in that environment’s Redis. Call `GET /api/cron/check-redis` (same `Authorization: Bearer <CRON_SECRET>`) to see `redisOrigin` and confirm Production uses the Redis you expect.
 
-  **Sub count = one per browser/device.** If you enable on mobile and the count stays the same, the mobile subscribe may have failed (check the `POST /api/push-subscribe` response in the mobile browser’s network tab; it should return 200 and `subsCount: 2`). **Desktop notifications:** Background push uses a single tag so the latest reminder is visible; clicking the notification focuses/opens the app.
+  **Sub count = one per browser/device.** If you enable on mobile and the count stays the same, the mobile subscribe may have failed (check the `POST /api/push-subscribe` response in the mobile browser’s network tab). **Reset notifications:** Use “Reset notifications” in the Reminders section to unsubscribe and resubscribe (fixes stuck or expired state).
+
+  **Testing:** (1) Enable notifications on production, close the tab/app. (2) Set a reminder time 1–2 minutes from now, wait for that minute; cron runs every minute and sends if local HH:mm matches. (3) Dedupe: each reminder slot is sent at most once per day per subscription (`lastSent`). (4) Expired subs: if the push service returns 404/410, the subscription is removed from Redis automatically.
+
+### After deploying to Vercel
+
+**1. Set environment variables** (Vercel → Project → Settings → Environment Variables). Add these for **Production** (and Preview if you want push there too):
+
+| Variable | Where to get it | Notes |
+|----------|-----------------|--------|
+| `VAPID_PUBLIC_KEY` | Run `npm run generate-vapid` locally; copy the **public** key | Base64url string |
+| `VAPID_PRIVATE_KEY` | Same command; copy the **private** key | Base64url; keep secret |
+| `PUSH_CONTACT_EMAIL` | Use your email, e.g. `mailto:you@example.com` | Required by Web Push spec |
+| `CRON_SECRET` | Generate a random string (e.g. `openssl rand -hex 24`) | Protects cron endpoint |
+| `UPSTASH_REDIS_REST_URL` | [Upstash Console](https://console.upstash.com/) → create Redis → copy REST URL | |
+| `UPSTASH_REDIS_REST_TOKEN` | Same Upstash Redis → copy REST Token | |
+
+Redeploy after adding or changing env vars (or trigger a new deployment so they’re picked up).
+
+**2. Post-deployment checks**
+
+- **Cron is registered:** Vercel → Project → Settings → Crons. You should see `/api/send-due-notifications` with schedule `* * * * *` (every minute). Vercel injects `CRON_SECRET` when it calls the cron; no extra setup needed.
+- **VAPID and Redis:** Open `https://your-app.vercel.app/api/push-vapid`. You should get `{"publicKey":"..."}` (not 500). Then call `GET https://your-app.vercel.app/api/cron/check-redis` with header `Authorization: Bearer <YOUR_CRON_SECRET>`. You should get `{"redis":"ok","subsCount":0,...}` (or `subsCount` &gt; 0 if someone already subscribed).
+- **End-to-end:** On the **production** URL, click “Enable notifications”, allow in the browser, optionally set a reminder time 1–2 minutes from now. Close the tab. After that minute, you should get a push (and `check-redis` should show `subsCount: 1`).
+
+**3. Optional: manual cron test**
+
+To trigger the cron by hand (e.g. to test without waiting):  
+`curl -H "Authorization: Bearer YOUR_CRON_SECRET" "https://your-app.vercel.app/api/send-due-notifications"`  
+You should get `{"processed":1,"sent":0,"deleted":0,"failed":0}` (or similar). Use the same header for `GET .../api/cron/check-redis`.
 
 ## Icons (required for PWA install)
 

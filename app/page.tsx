@@ -22,6 +22,8 @@ import {
   requestNotificationPermission,
   getNotificationPermission,
   scheduleTodayNotifications,
+  subscribeToPush,
+  resetNotifications,
   getNotificationTimes,
   setNotificationTimes,
   sendTestNotification,
@@ -71,6 +73,8 @@ export default function HomePage() {
   const [reminderTimes, setReminderTimes] = useState<NotificationTimes | null>(null);
   const [showCustomizeTimes, setShowCustomizeTimes] = useState(false);
   const [customTimes, setCustomTimes] = useState<NotificationTimes>({ morning: "10:40", beforeWork: "11:45", streakRisk: "12:15" });
+  const [pushSubscribeError, setPushSubscribeError] = useState<string | null>(null);
+  const [resettingPush, setResettingPush] = useState(false);
 
   const refresh = useCallback(() => {
     setTrackingStartedState(!!getTrackingStartedDate());
@@ -113,16 +117,40 @@ export default function HomePage() {
   };
 
   const handleEnableNotifications = async () => {
+    setPushSubscribeError(null);
     const perm = await requestNotificationPermission();
     setNotificationPermission(perm);
-    if (perm === "granted") scheduleTodayNotifications();
+    if (perm === "granted") {
+      scheduleTodayNotifications();
+      const result = await subscribeToPush();
+      if (!result.ok) setPushSubscribeError(result.error);
+    }
   };
 
-  const handleSaveReminderTimes = () => {
+  const handleSaveReminderTimes = async () => {
+    setPushSubscribeError(null);
     setNotificationTimes(customTimes);
     setReminderTimes(getNotificationTimes());
     setShowCustomizeTimes(false);
-    if (notificationPermission === "granted") scheduleTodayNotifications();
+    if (notificationPermission === "granted") {
+      scheduleTodayNotifications();
+      const result = await subscribeToPush();
+      if (!result.ok) setPushSubscribeError(result.error);
+    }
+  };
+
+  const handleRetryPushSubscribe = async () => {
+    setPushSubscribeError(null);
+    const result = await subscribeToPush();
+    if (!result.ok) setPushSubscribeError(result.error);
+  };
+
+  const handleResetNotifications = async () => {
+    setPushSubscribeError(null);
+    setResettingPush(true);
+    const result = await resetNotifications();
+    setResettingPush(false);
+    if (!result.ok) setPushSubscribeError(result.error);
   };
 
   const displayDate = new Date().toLocaleDateString("en-US", {
@@ -280,8 +308,28 @@ export default function HomePage() {
                   Notifications enabled
                   {reminderTimes && ` (${reminderTimes.morning}, ${reminderTimes.beforeWork}, ${reminderTimes.streakRisk})`}
                 </p>
-                <p className="mt-0.5 text-xs text-slate-500">Reminders fire at these times when the app or tab is open.</p>
+                <p className="mt-0.5 text-xs text-slate-500">Reminders fire at these times (including when the app is closed).</p>
+                {pushSubscribeError && (
+                  <div className="mt-2 text-sm text-amber-400">
+                    <p>{pushSubscribeError}</p>
+                    <p className="mt-1">
+                      <button type="button" onClick={handleRetryPushSubscribe} className="underline">Try again</button>
+                      {" · "}
+                      <button type="button" onClick={handleResetNotifications} className="underline" disabled={resettingPush}>
+                        {resettingPush ? "Resetting…" : "Reset notifications"}
+                      </button>
+                    </p>
+                  </div>
+                )}
                 <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleResetNotifications}
+                    disabled={resettingPush}
+                    className="text-xs text-slate-400 underline hover:text-slate-300"
+                  >
+                    {resettingPush ? "Resetting…" : "Reset notifications"}
+                  </button>
                   {process.env.NODE_ENV === "development" && (
                     <button
                       type="button"
@@ -367,7 +415,7 @@ export default function HomePage() {
             ) : (
               <>
                 <p className="mt-1 text-sm text-slate-400">
-                  Get workout reminders at your chosen times (customize after enabling).
+                  Get workout reminders at your chosen times, even when the app is closed (customize after enabling).
                 </p>
                 <button
                   type="button"

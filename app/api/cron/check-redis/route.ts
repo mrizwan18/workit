@@ -4,8 +4,11 @@ import { getRedisStatus } from "@/lib/push-server";
 const CRON_SECRET = process.env.CRON_SECRET;
 
 function isAuthorized(request: NextRequest): boolean {
+  if (!CRON_SECRET) return false;
   const auth = request.headers.get("authorization");
-  return !!(CRON_SECRET && auth === `Bearer ${CRON_SECRET}`);
+  if (auth === `Bearer ${CRON_SECRET}`) return true;
+  const secret = request.nextUrl.searchParams.get("secret");
+  return secret === CRON_SECRET;
 }
 
 /** Check Redis env and subscription count. Use same Authorization header as send-reminders. */
