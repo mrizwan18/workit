@@ -133,6 +133,68 @@ function validateVapidPublicKey(publicKey: string): { ok: true; key: Uint8Array 
 
 export type SubscribeToPushResult = { ok: true } | { ok: false; error: string };
 
+const RETRY_PUSH_AFTER_RELOAD_KEY = "before-work-retry-push-after-reload";
+export const PUSH_SUBSCRIBE_FAILED_EVENT = "before-work-push-subscribe-failed";
+
+function shouldRetryPushAfterReload(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return sessionStorage.getItem(RETRY_PUSH_AFTER_RELOAD_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function clearRetryPushAfterReload(): void {
+  try {
+    sessionStorage.removeItem(RETRY_PUSH_AFTER_RELOAD_KEY);
+  } catch {
+    // ignore
+  }
+}
+
+/** Set a flag and reload the page. After reload, subscribe will run once automatically (e.g. from NotificationSetup). */
+export function scheduleReloadAndRetryPush(): void {
+  try {
+    sessionStorage.setItem(RETRY_PUSH_AFTER_RELOAD_KEY, "1");
+    window.location.reload();
+  } catch {
+    window.location.reload();
+  }
+}
+
+const PUSH_ERROR_AFTER_RELOAD_KEY = "before-work-push-error-after-reload";
+
+/** Call this on app load when permission is already granted. If retry flag is set, runs subscribe once and clears flag. Returns true if the retry ran. */
+export async function runSubscribeAfterReloadIfScheduled(): Promise<boolean> {
+  if (!shouldRetryPushAfterReload()) return false;
+  clearRetryPushAfterReload();
+  const result = await subscribeToPush();
+  if (!result.ok && typeof window !== "undefined") {
+    try {
+      sessionStorage.setItem(PUSH_ERROR_AFTER_RELOAD_KEY, result.error);
+    } catch {
+      // ignore
+    }
+    window.dispatchEvent(
+      new CustomEvent(PUSH_SUBSCRIBE_FAILED_EVENT, { detail: { error: result.error } })
+    );
+  }
+  return true;
+}
+
+/** Read and clear any push error that was stored after a reload-and-retry. Call from page when showing reminders section. */
+export function consumePushErrorAfterReload(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const err = sessionStorage.getItem(PUSH_ERROR_AFTER_RELOAD_KEY);
+    sessionStorage.removeItem(PUSH_ERROR_AFTER_RELOAD_KEY);
+    return err;
+  } catch {
+    return null;
+  }
+}
+
 /** Subscribe to Web Push and register with the backend for background reminders. */
 export async function subscribeToPush(): Promise<SubscribeToPushResult> {
   if (typeof window === "undefined" || !("serviceWorker" in navigator) || !("PushManager" in window)) {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { scheduleTodayNotifications, subscribeToPush } from "@/lib/notifications";
+import { scheduleTodayNotifications, subscribeToPush, runSubscribeAfterReloadIfScheduled } from "@/lib/notifications";
 
 export function NotificationSetup() {
   useEffect(() => {
@@ -10,7 +10,9 @@ export function NotificationSetup() {
     }
     if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
       scheduleTodayNotifications();
-      subscribeToPush();
+      runSubscribeAfterReloadIfScheduled().then((retryRan) => {
+        if (!retryRan) subscribeToPush();
+      });
     }
   }, []);
 

@@ -24,6 +24,8 @@ import {
   scheduleTodayNotifications,
   subscribeToPush,
   resetNotifications,
+  scheduleReloadAndRetryPush,
+  consumePushErrorAfterReload,
   getNotificationTimes,
   setNotificationTimes,
   sendTestNotification,
@@ -98,6 +100,8 @@ export default function HomePage() {
     setNotificationPermission(getNotificationPermission());
     setReminderTimes(getNotificationTimes());
     setCustomTimes(getNotificationTimes());
+    const err = consumePushErrorAfterReload();
+    if (err) setPushSubscribeError(err);
   }, [mounted]);
 
   const handleStartImprovement = () => {
@@ -314,6 +318,8 @@ export default function HomePage() {
                     <p>{pushSubscribeError}</p>
                     <p className="mt-1">
                       <button type="button" onClick={handleRetryPushSubscribe} className="underline">Try again</button>
+                      {" · "}
+                      <button type="button" onClick={scheduleReloadAndRetryPush} className="underline">Reload and try again</button>
                       {" · "}
                       <button type="button" onClick={handleResetNotifications} className="underline" disabled={resettingPush}>
                         {resettingPush ? "Resetting…" : "Reset notifications"}

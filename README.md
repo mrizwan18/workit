@@ -116,6 +116,30 @@ To trigger the cron by hand (e.g. to test without waiting):
 `curl -H "Authorization: Bearer YOUR_CRON_SECRET" "https://your-app.vercel.app/api/send-due-notifications"`  
 You should get `{"processed":1,"sent":0,"deleted":0,"failed":0}` (or similar). Use the same header for `GET .../api/cron/check-redis`.
 
+### Testing mobile notifications
+
+**Prerequisites:** Production env vars set, external cron hitting `/api/send-due-notifications` every minute.
+
+**Android Chrome**
+
+1. Open your **production** URL in Chrome (e.g. `https://workit-iota.vercel.app`). Do **not** use an in-app browser (e.g. from Twitter/Telegram).
+2. Optional but recommended: **Add to Home screen** (Chrome menu → “Add to Home screen”). Open the app from that icon so it runs as a PWA.
+3. Tap **“Enable notifications”** and allow when the browser prompts.
+4. If you see an error under Reminders (e.g. “Subscribe failed…”), tap **“Try again”** or **“Reset notifications”**. On first load the service worker may not be controlling the page yet; a retry often works.
+5. Set a reminder time **1–2 minutes from now** (Reminders → Customize times → set e.g. “Start” to the next minute → Save).
+6. **Close the tab** (or leave the app in the background). Wait until that minute has passed.
+7. You should get a **push notification** (“Before Work” / “Workout = commute. Start now.” or the copy for that slot). Tap it to open the app.
+
+**Sanity checks**
+
+- **VAPID:** In a browser, open `https://your-app.vercel.app/api/push-vapid`. You should see `{"publicKey":"..."}`. If 500, VAPID env vars are wrong or missing.
+- **Redis + subs:** Call `GET https://your-app.vercel.app/api/cron/check-redis` with `Authorization: Bearer YOUR_CRON_SECRET`. After enabling notifications on the phone you should see `subsCount: 1` (or more). If still 0, the subscribe request from the phone never reached the server or failed (check for an error message in the app after “Enable notifications”).
+- **Cron:** Your external cron must call the production URL every minute. If it’s not set up or the URL/secret is wrong, no push will be sent when the time matches.
+
+**iOS (Safari / PWA)**
+
+- Web Push is supported **only when the app is added to the Home Screen and opened from there** (not in a normal Safari tab). Add to Home Screen → open that icon → then enable notifications and set a reminder 1–2 minutes ahead. Close the app and wait; you should get the notification when the cron runs at that minute.
+
 ## Icons (required for PWA install)
 
 The repo includes **`public/icon-192.png`** (192×192) and **`public/icon-512.png`** (512×512), a green (#22c55e) rounded square. They were generated with:
