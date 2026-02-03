@@ -24,6 +24,11 @@ function getRedis(): Redis | null {
   return new Redis({ url, token });
 }
 
+/** For debugging: whether Redis is available in this request (same env getRedis uses). */
+export function isRedisConfigured(): boolean {
+  return getRedis() !== null;
+}
+
 export async function getStoredSubscriptions(): Promise<StoredSubscription[]> {
   const redis = getRedis();
   if (!redis) return [];
