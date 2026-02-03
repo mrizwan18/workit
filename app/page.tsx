@@ -288,13 +288,15 @@ export default function HomePage() {
                   {reminderTimes && ` (${reminderTimes.morning}, ${reminderTimes.beforeWork}, ${reminderTimes.streakRisk})`}
                 </p>
                 <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={sendTestNotification}
-                    className="rounded border border-accent/50 bg-accent/20 px-3 py-1.5 text-xs font-medium text-accent hover:bg-accent/30"
-                  >
-                    Send test notification
-                  </button>
+                  {process.env.NODE_ENV === "development" && (
+                    <button
+                      type="button"
+                      onClick={sendTestNotification}
+                      className="rounded border border-accent/50 bg-accent/20 px-3 py-1.5 text-xs font-medium text-accent hover:bg-accent/30"
+                    >
+                      Send test notification
+                    </button>
+                  )}
                   {!showCustomizeTimes ? (
                     <button
                       type="button"
