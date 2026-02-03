@@ -52,6 +52,26 @@ export function isPushConfigured(): boolean {
   );
 }
 
+/** For debugging: check Redis connectivity and subscription count. */
+export async function getRedisStatus(): Promise<{
+  redis: "ok" | "not_configured" | "error";
+  subsCount: number;
+  message?: string;
+}> {
+  const url = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (!url || !token) {
+    return { redis: "not_configured", subsCount: 0, message: "UPSTASH_REDIS_REST_URL or UPSTASH_REDIS_REST_TOKEN missing" };
+  }
+  try {
+    const subs = await getStoredSubscriptions();
+    return { redis: "ok", subsCount: subs.length };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { redis: "error", subsCount: 0, message: msg };
+  }
+}
+
 /** Send a push notification (payload shown by service worker). */
 export async function sendPushNotification(
   subscription: StoredSubscription["subscription"],
