@@ -75,6 +75,8 @@ The app **can publish notifications** for workouts:
 
   **If cron returns `subs: 0`:** Subscriptions are stored in the Redis of the **origin that served the subscribe request**. Enable notifications from your **production** app URL (the same domain you use for cron). If you enabled them on localhost or a Preview URL, those subs live in that environment’s Redis. Call `GET /api/cron/check-redis` (same `Authorization: Bearer <CRON_SECRET>`) to see `redisOrigin` and confirm Production uses the Redis you expect.
 
+  **Sub count = one per browser/device.** If you enable on mobile and the count stays the same, the mobile subscribe may have failed (check the `POST /api/push-subscribe` response in the mobile browser’s network tab; it should return 200 and `subsCount: 2`). **Desktop notifications:** Background push uses a single tag so the latest reminder is visible; clicking the notification focuses/opens the app.
+
 ## Icons (required for PWA install)
 
 The repo includes **`public/icon-192.png`** (192×192) and **`public/icon-512.png`** (512×512), a green (#22c55e) rounded square. They were generated with:
