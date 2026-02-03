@@ -227,16 +227,31 @@ export default function HomePage() {
 
             {!logged && !isRestDay(today) && (
               <div className="mt-6 flex flex-col gap-3">
-                <button
-                  type="button"
-                  onClick={handleLog}
-                  className="w-full rounded-2xl bg-accent py-4 text-lg font-semibold text-surface shadow-lg shadow-accent/25 transition hover:bg-green-400 hover:shadow-accent/35 active:scale-[0.98]"
-                >
-                  Log Workout
-                </button>
-                <p className="text-center text-sm text-slate-500">
-                  Or use the <Link href="/checklist" className="text-accent underline decoration-accent/50 underline-offset-2 hover:decoration-accent">Checklist</Link> (min 2 items = workout)
-                </p>
+                {permanentDanger ? (
+                  <>
+                    <p className="text-center text-sm text-red-200/90">Two weekdays missed in a row. The only way to reset is to own it.</p>
+                    <button
+                      type="button"
+                      onClick={() => setAshamedOpen(true)}
+                      className="w-full rounded-2xl border-2 border-red-400/60 bg-red-600/40 py-4 text-lg font-semibold text-red-100 shadow-lg transition hover:bg-red-600/60 active:scale-[0.98]"
+                    >
+                      I am ashamed
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleLog}
+                      className="w-full rounded-2xl bg-accent py-4 text-lg font-semibold text-surface shadow-lg shadow-accent/25 transition hover:bg-green-400 hover:shadow-accent/35 active:scale-[0.98]"
+                    >
+                      Log Workout
+                    </button>
+                    <p className="text-center text-sm text-slate-500">
+                      Or use the <Link href="/checklist" className="text-accent underline decoration-accent/50 underline-offset-2 hover:decoration-accent">Checklist</Link> (min 2 items = workout)
+                    </p>
+                  </>
+                )}
               </div>
             )}
           </section>
@@ -350,18 +365,12 @@ export default function HomePage() {
             </div>
           )}
 
-          {permanentDanger && (
-            <div className="mt-6 rounded-xl border border-red-500/50 bg-red-500/10 px-4 py-3 text-red-200">
-              <p className="font-medium">Two weekdays missed in a row</p>
-              <p className="mt-1 text-sm text-red-200/90">The only way to reset is to own it.</p>
-              <button
-                type="button"
-                onClick={() => setAshamedOpen(true)}
-                className="mt-3 w-full rounded-lg border border-red-400/50 bg-red-600/30 py-2.5 text-sm font-medium text-red-100 transition hover:bg-red-600/50"
-              >
-                I am ashamed
-              </button>
-            </div>
+          {process.env.NODE_ENV === "development" && (
+            <p className="mt-8 text-center">
+              <Link href="/simulate" className="text-xs text-slate-500 underline hover:text-slate-400">
+                Simulate UI states
+              </Link>
+            </p>
           )}
         </div>
       </div>

@@ -67,6 +67,11 @@ export function setTrackingStarted(dateKey: string): void {
   localStorage.setItem(TRACKING_START_KEY, dateKey);
 }
 
+export function clearTrackingStarted(): void {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(TRACKING_START_KEY);
+}
+
 export function getEntry(dateKey: string): DayEntry | undefined {
   return getWorkouts()[dateKey];
 }
@@ -168,6 +173,11 @@ export function setForgivenAt(dateKey: string): void {
   if (typeof window === "undefined") return;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return;
   localStorage.setItem(FORGIVEN_AT_KEY, dateKey);
+}
+
+export function clearForgivenAt(): void {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(FORGIVEN_AT_KEY);
 }
 
 export interface ResetRecord {
