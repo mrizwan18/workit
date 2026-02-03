@@ -66,5 +66,7 @@ export async function POST(request: NextRequest) {
   next.push(entry);
   await saveSubscriptions(next);
 
-  return NextResponse.json({ ok: true });
+  // Read back so client can confirm the write (same Redis check-redis uses)
+  const after = await getStoredSubscriptions();
+  return NextResponse.json({ ok: true, subsCount: after.length });
 }
