@@ -61,8 +61,7 @@ export function setNotificationTimes(times: Partial<NotificationTimes>): void {
   const current = getNotificationTimes();
   const next = { ...current };
   for (const key of SCHEDULE_KEYS) {
-    if (typeof times[key] === "string" && parseTimeHHMM(times[key] as string))
-      next[key] = times[key] as string;
+    if (typeof times[key] === "string" && parseTimeHHMM(times[key] as string)) next[key] = times[key] as string;
   }
   localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
 }
@@ -82,6 +81,8 @@ export async function requestNotificationPermission(): Promise<NotificationPermi
 /** Ask the service worker to show a notification (OS-level; works when tab is in background). */
 function showNotificationViaSW(title: string, body: string, icon = "/icon-192.png"): void {
   if (typeof window === "undefined" || !("Notification" in window) || Notification.permission !== "granted") return;
+
+  // If SW isn't available, fall back (foreground only)
   if (!("serviceWorker" in navigator)) {
     try {
       new Notification(title, { body, icon });
@@ -90,12 +91,26 @@ function showNotificationViaSW(title: string, body: string, icon = "/icon-192.pn
     }
     return;
   }
-  navigator.serviceWorker.ready.then((reg) => {
-    if (reg.active) reg.active.postMessage({ type: "SHOW_NOTIFICATION", title, body, icon });
-    else try { new Notification(title, { body, icon }); } catch { /* ignore */ }
-  }).catch(() => {
-    try { new Notification(title, { body, icon }); } catch { /* ignore */ }
-  });
+
+  navigator.serviceWorker.ready
+    .then((reg) => {
+      // Prefer postMessage to SW (your SW already handles SHOW_NOTIFICATION)
+      if (reg.active) reg.active.postMessage({ type: "SHOW_NOTIFICATION", title, body, icon });
+      else {
+        try {
+          new Notification(title, { body, icon });
+        } catch {
+          /* ignore */
+        }
+      }
+    })
+    .catch(() => {
+      try {
+        new Notification(title, { body, icon });
+      } catch {
+        /* ignore */
+      }
+    });
 }
 
 export function showNotification(title: string, body: string, icon = "/icon-192.png"): void {
@@ -117,7 +132,9 @@ function urlBase64ToUint8Array(base64: string): Uint8Array {
 }
 
 /** Validate VAPID public key: base64url decode and expect 65 bytes (uncompressed P-256). */
-function validateVapidPublicKey(publicKey: string): { ok: true; key: Uint8Array } | { ok: false; error: string } {
+function validateVapidPublicKey(
+  publicKey: string
+): { ok: true; key: Uint8Array } | { ok: false; error: string } {
   const trimmed = publicKey.trim();
   if (!trimmed) return { ok: false, error: "Push key is missing. Please try again later." };
   try {
@@ -176,9 +193,7 @@ export async function runSubscribeAfterReloadIfScheduled(): Promise<boolean> {
     } catch {
       // ignore
     }
-    window.dispatchEvent(
-      new CustomEvent(PUSH_SUBSCRIBE_FAILED_EVENT, { detail: { error: result.error } })
-    );
+    window.dispatchEvent(new CustomEvent(PUSH_SUBSCRIBE_FAILED_EVENT, { detail: { error: result.error } }));
   }
   return true;
 }
@@ -202,17 +217,40 @@ function waitForServiceWorkerController(maxWaitMs: number): Promise<boolean> {
   return new Promise((resolve) => {
     const start = Date.now();
     const check = () => {
-      if (navigator.serviceWorker.controller) {
-        resolve(true);
-        return;
-      }
-      if (Date.now() - start >= maxWaitMs) {
-        resolve(false);
-        return;
-      }
+      if (navigator.serviceWorker.controller) return resolve(true);
+      if (Date.now() - start >= maxWaitMs) return resolve(false);
       setTimeout(check, 500);
     };
     check();
+  });
+}
+
+/** Wait for the SW registration to be fully ACTIVATED (mobile push is more reliable after activation). */
+async function waitForServiceWorkerActivated(
+  reg: ServiceWorkerRegistration,
+  maxWaitMs = 8000
+): Promise<boolean> {
+  const sw = reg.installing || reg.waiting || reg.active;
+  if (!sw) return false;
+  if (sw.state === "activated") return true;
+
+  return await new Promise<boolean>((resolve) => {
+    const start = Date.now();
+    const onChange = () => {
+      if (sw.state === "activated") {
+        sw.removeEventListener("statechange", onChange);
+        resolve(true);
+      } else if (Date.now() - start >= maxWaitMs) {
+        sw.removeEventListener("statechange", onChange);
+        resolve(false);
+      }
+    };
+    sw.addEventListener("statechange", onChange);
+
+    setTimeout(() => {
+      sw.removeEventListener("statechange", onChange);
+      resolve(sw.state === "activated");
+    }, maxWaitMs);
   });
 }
 
@@ -225,19 +263,26 @@ export async function subscribeToPush(): Promise<SubscribeToPushResult> {
     return { ok: false, error: "Permission not granted" };
   }
 
-  await navigator.serviceWorker.ready;
+  const reg = await navigator.serviceWorker.ready;
+
   const hasController = await waitForServiceWorkerController(8000);
   if (!hasController) {
     return {
       ok: false,
-      error: "App not ready for push yet. Reload the page and enable notifications again, or add the app to your home screen and open from there.",
+      error:
+        "App not ready for push yet. Reload the page and enable notifications again, or add the app to your home screen and open from there.",
     };
   }
 
-  const reg = await navigator.serviceWorker.ready;
+  const activated = await waitForServiceWorkerActivated(reg, 8000);
+  if (!activated) {
+    return { ok: false, error: "Service worker not fully activated yet. Please reload and try again." };
+  }
+
   if (!reg.pushManager) {
     return { ok: false, error: "PushManager not available" };
   }
+
   const vapidRes = await fetch("/api/push-vapid");
   if (!vapidRes.ok) {
     return { ok: false, error: "Failed to get push config" };
@@ -260,7 +305,7 @@ export async function subscribeToPush(): Promise<SubscribeToPushResult> {
   };
 
   const delays = [0, 2000, 4000];
-  let lastError: string = "";
+  let lastError = "";
   let sub: PushSubscription | null = null;
 
   for (const delay of delays) {
@@ -269,14 +314,16 @@ export async function subscribeToPush(): Promise<SubscribeToPushResult> {
       sub = await doSubscribe();
       break;
     } catch (e) {
-      lastError = e instanceof Error ? e.message : String(e);
+      const err = e as any;
+      // IMPORTANT: keep name + message; Android often hides the root cause otherwise.
+      lastError = `${err?.name || "Error"}: ${err?.message || String(e)}`;
     }
   }
 
   if (!sub) {
     const hint =
       /push service|registration failed|GCM|FCM/i.test(lastError)
-        ? " Open the app in Chrome (Android) or Safari (iOS), or add to home screen and open from there—in-app browsers often don’t support push."
+        ? " If you're on Android, ensure Chrome + Google Play services are updated, and try installing the app (Add to Home screen) then enabling notifications from the installed app."
         : "";
     return {
       ok: false,
