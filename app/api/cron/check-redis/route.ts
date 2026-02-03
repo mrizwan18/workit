@@ -14,5 +14,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const status = await getRedisStatus();
-  return NextResponse.json(status);
+  const body =
+    status.subsCount === 0 && status.redis === "ok"
+      ? { ...status, hint: "Subscriptions are stored in the Redis of the origin that served the subscribe request. If you enabled notifications on localhost or a Preview URL, subs are in that env's Redis. Enable notifications on this app's URL (same origin as this API) so they are stored here." }
+      : status;
+  return NextResponse.json(body);
 }

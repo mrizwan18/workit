@@ -73,6 +73,8 @@ The app **can publish notifications** for workouts:
 - **In-page:** Reminders run while the app (or its tab) is open via in-page timers.
 - **Background (optional):** With env vars and an external cron, reminders can fire when the app is closed. Setup: (1) Run `npm run generate-vapid`, add `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` to Vercel env. (2) Add Upstash Redis: set `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`. (3) Set `CRON_SECRET` in Vercel. (4) Use an external cron (e.g. [cron-job.org](https://cron-job.org)) to call `GET https://your-app.vercel.app/api/cron/send-reminders` every 10 minutes with header `Authorization: Bearer <CRON_SECRET>`. No `vercel.json` is used, so deployment is unaffected.
 
+  **If cron returns `subs: 0`:** Subscriptions are stored in the Redis of the **origin that served the subscribe request**. Enable notifications from your **production** app URL (the same domain you use for cron). If you enabled them on localhost or a Preview URL, those subs live in that environment’s Redis. Call `GET /api/cron/check-redis` (same `Authorization: Bearer <CRON_SECRET>`) to see `redisOrigin` and confirm Production uses the Redis you expect.
+
 ## Icons (required for PWA install)
 
 The repo includes **`public/icon-192.png`** (192×192) and **`public/icon-512.png`** (512×512), a green (#22c55e) rounded square. They were generated with:
