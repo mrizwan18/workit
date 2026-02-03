@@ -377,9 +377,17 @@ export default function HomePage() {
                   </div>
                 )}
                 {pushSubscribeError && (
-                  <p className="mt-2 text-sm text-amber-400">
-                    {pushSubscribeError} <button type="button" onClick={handleRetryPushSubscribe} className="underline">Try again</button>
-                  </p>
+                  <div className="mt-2 text-sm text-amber-400">
+                    <p>{pushSubscribeError}</p>
+                    {/push service error|registration failed/i.test(pushSubscribeError) && (
+                      <p className="mt-1 text-amber-400/90">
+                        Often fixed by: add this app to your home screen and open from there (iOS); try another network or disable VPN; or retry later.
+                      </p>
+                    )}
+                    <p className="mt-1">
+                      <button type="button" onClick={handleRetryPushSubscribe} className="underline">Try again</button>
+                    </p>
+                  </div>
                 )}
               </>
             ) : notificationPermission === "denied" ? (
