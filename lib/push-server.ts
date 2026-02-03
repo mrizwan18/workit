@@ -12,6 +12,8 @@ export type StoredSubscription = {
   endpoint: string;
   subscription: { endpoint: string; keys: { p256dh: string; auth: string }; expirationTime?: number | null };
   times: { morning: string; beforeWork: string; streakRisk: string };
+  /** User's IANA timezone (e.g. Asia/Karachi) so we compare times in their local time. */
+  timezone?: string;
   lastSent?: { date: string; morning?: boolean; beforeWork?: boolean; streakRisk?: boolean };
 };
 

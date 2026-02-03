@@ -119,10 +119,11 @@ export async function subscribeToPush(): Promise<boolean> {
       applicationServerKey: urlBase64ToUint8Array(publicKey) as BufferSource,
     });
     const times = getNotificationTimes();
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || undefined;
     const res = await fetch("/api/push-subscribe", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ subscription: sub.toJSON(), times }),
+      body: JSON.stringify({ subscription: sub.toJSON(), times, timezone }),
     });
     return res.ok;
   } catch {

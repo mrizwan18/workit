@@ -10,14 +10,32 @@ function isAuthorized(request: NextRequest): boolean {
   return !!(CRON_SECRET && auth === `Bearer ${CRON_SECRET}`);
 }
 
-function nowHHMM(): string {
+/** Current time as HH:MM in the given IANA timezone, or UTC if invalid/missing. */
+function nowHHMMInZone(timezone?: string): string {
   const d = new Date();
-  const h = d.getHours();
-  const m = d.getMinutes();
+  if (timezone) {
+    try {
+      const s = d.toLocaleTimeString("en-CA", { timeZone: timezone, hour12: false, hour: "2-digit", minute: "2-digit" });
+      if (s && /^\d{1,2}:\d{2}$/.test(s)) return s;
+    } catch {
+      // fallback to UTC
+    }
+  }
+  const h = d.getUTCHours();
+  const m = d.getUTCMinutes();
   return `${h}:${m.toString().padStart(2, "0")}`;
 }
 
-function todayKey(): string {
+/** Today's date as YYYY-MM-DD in the given timezone, or UTC if invalid/missing. */
+function todayKeyInZone(timezone?: string): string {
+  if (timezone) {
+    try {
+      const s = new Date().toLocaleDateString("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit" });
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    } catch {
+      // fallback
+    }
+  }
   return new Date().toISOString().slice(0, 10);
 }
 
@@ -42,15 +60,16 @@ export async function GET(request: NextRequest) {
 
   const subs = await getStoredSubscriptions();
   if (subs.length === 0) {
-    return NextResponse.json({ ok: true, sent: 0 });
+    return NextResponse.json({ ok: true, sent: 0, subs: 0 });
   }
 
-  const now = nowHHMM();
-  const today = todayKey();
   const updated: StoredSubscription[] = [];
   let sent = 0;
 
   for (const sub of subs) {
+    const tz = sub.timezone;
+    const today = todayKeyInZone(tz);
+    const now = nowHHMMInZone(tz);
     let lastSent = sub.lastSent?.date === today ? { ...sub.lastSent } : { date: today, morning: false, beforeWork: false, streakRisk: false };
     let changed = false;
 
@@ -75,5 +94,5 @@ export async function GET(request: NextRequest) {
   }
 
   await saveSubscriptions(updated);
-  return NextResponse.json({ ok: true, sent });
+  return NextResponse.json({ ok: true, sent, subs: subs.length });
 }

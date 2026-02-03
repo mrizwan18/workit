@@ -42,10 +42,11 @@ export async function POST(request: NextRequest) {
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
-  const { subscription, times } = body as { subscription?: unknown; times?: unknown };
+  const { subscription, times, timezone } = body as { subscription?: unknown; times?: unknown; timezone?: unknown };
   if (!isValidSubscription(subscription) || !isValidTimes(times)) {
     return NextResponse.json({ error: "Missing or invalid subscription or times" }, { status: 400 });
   }
+  const tz = typeof timezone === "string" && timezone.length > 0 && timezone.length <= 64 ? timezone : undefined;
 
   const subs = await getStoredSubscriptions();
   const endpoint = subscription.endpoint;
@@ -58,6 +59,7 @@ export async function POST(request: NextRequest) {
       expirationTime: (subscription as { expirationTime?: number | null }).expirationTime ?? null,
     },
     times: { morning: times.morning, beforeWork: times.beforeWork, streakRisk: times.streakRisk },
+    timezone: tz,
     lastSent: existing?.lastSent,
   };
   const next = subs.filter((s) => s.endpoint !== endpoint);
