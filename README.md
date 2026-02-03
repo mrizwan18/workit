@@ -70,7 +70,8 @@ The app **can publish notifications** for workouts:
 
 - **When:** Scheduled at **10:40**, **11:45**, and **12:15** (same day) if the user has granted notification permission.
 - **Copy:** “Workout = commute. Start now.” / “Log your workout before work starts.” / “Streak at risk. 10 minutes still counts.”
-- **Limitation:** Reminders run only while the app (or its tab) is open; they use in-page timers. Open the app at least once that day to get reminders.
+- **In-page:** Reminders run while the app (or its tab) is open via in-page timers.
+- **Background (optional):** With env vars and an external cron, reminders can fire when the app is closed. Setup: (1) Run `npm run generate-vapid`, add `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` to Vercel env. (2) Add Upstash Redis: set `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`. (3) Set `CRON_SECRET` in Vercel. (4) Use an external cron (e.g. [cron-job.org](https://cron-job.org)) to call `GET https://your-app.vercel.app/api/cron/send-reminders` every 10 minutes with header `Authorization: Bearer <CRON_SECRET>`. No `vercel.json` is used, so deployment is unaffected.
 
 ## Icons (required for PWA install)
 

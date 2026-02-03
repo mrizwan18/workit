@@ -22,6 +22,7 @@ import {
   requestNotificationPermission,
   getNotificationPermission,
   scheduleTodayNotifications,
+  subscribeToPush,
   getNotificationTimes,
   setNotificationTimes,
   sendTestNotification,
@@ -115,14 +116,20 @@ export default function HomePage() {
   const handleEnableNotifications = async () => {
     const perm = await requestNotificationPermission();
     setNotificationPermission(perm);
-    if (perm === "granted") scheduleTodayNotifications();
+    if (perm === "granted") {
+      scheduleTodayNotifications();
+      await subscribeToPush();
+    }
   };
 
   const handleSaveReminderTimes = () => {
     setNotificationTimes(customTimes);
     setReminderTimes(getNotificationTimes());
     setShowCustomizeTimes(false);
-    if (notificationPermission === "granted") scheduleTodayNotifications();
+    if (notificationPermission === "granted") {
+      scheduleTodayNotifications();
+      subscribeToPush();
+    }
   };
 
   const displayDate = new Date().toLocaleDateString("en-US", {
