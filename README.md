@@ -71,7 +71,7 @@ The app **can publish notifications** for workouts:
 - **When:** Scheduled at **10:40**, **11:45**, and **12:15** (same day) if the user has granted notification permission.
 - **Copy:** “Workout = commute. Start now.” / “Log your workout before work starts.” / “Streak at risk. 10 minutes still counts.”
 - **In-page:** Reminders run while the app (or its tab) is open via in-page timers.
-- **Background (Vercel Cron):** Reminders can fire when the app/tab is closed (Android Chrome, etc.). `vercel.json` defines a cron that runs every minute and calls `GET /api/send-due-notifications`. **Env vars:** `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` (base64url from `npm run generate-vapid`), `PUSH_CONTACT_EMAIL` (e.g. `mailto:you@example.com`), `CRON_SECRET`, `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`. The cron is protected by `Authorization: Bearer <CRON_SECRET>` or `?secret=<CRON_SECRET>`.
+- **Background (external cron):** Reminders can fire when the app/tab is closed (Android Chrome, etc.). There is **no `vercel.json`** (to avoid Vercel build/config issues). Instead, use an **external cron** (e.g. [cron-job.org](https://cron-job.org)) to call `GET https://your-app.vercel.app/api/send-due-notifications` every minute with header `Authorization: Bearer <CRON_SECRET>` (or `?secret=<CRON_SECRET>`). **Env vars:** `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` (base64url from `npm run generate-vapid`), `PUSH_CONTACT_EMAIL` (e.g. `mailto:you@example.com`), `CRON_SECRET`, `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`.
 
   **If cron returns `subs: 0`:** Subscriptions are stored in the Redis of the **origin that served the subscribe request**. Enable notifications from your **production** app URL (the same domain you use for cron). If you enabled them on localhost or a Preview URL, those subs live in that environment’s Redis. Call `GET /api/cron/check-redis` (same `Authorization: Bearer <CRON_SECRET>`) to see `redisOrigin` and confirm Production uses the Redis you expect.
 
@@ -94,13 +94,23 @@ The app **can publish notifications** for workouts:
 
 Redeploy after adding or changing env vars (or trigger a new deployment so they’re picked up).
 
-**2. Post-deployment checks**
+**2. Set up external cron (for background reminders)**
 
-- **Cron is registered:** Vercel → Project → Settings → Crons. You should see `/api/send-due-notifications` with schedule `* * * * *` (every minute). Vercel injects `CRON_SECRET` when it calls the cron; no extra setup needed.
+Create a cron job that runs **every minute** and calls your endpoint with auth:
+
+- **URL:** `https://your-app.vercel.app/api/send-due-notifications`
+- **Method:** GET
+- **Schedule:** Every minute (e.g. `* * * * *` on cron-job.org)
+- **Auth:** Add HTTP header `Authorization: Bearer <YOUR_CRON_SECRET>` (or use `?secret=YOUR_CRON_SECRET` in the URL)
+
+Example: [cron-job.org](https://cron-job.org) → Create Cron Job → URL as above → Advanced → Request Headers: `Authorization: Bearer YOUR_CRON_SECRET`.
+
+**3. Post-deployment checks**
+
 - **VAPID and Redis:** Open `https://your-app.vercel.app/api/push-vapid`. You should get `{"publicKey":"..."}` (not 500). Then call `GET https://your-app.vercel.app/api/cron/check-redis` with header `Authorization: Bearer <YOUR_CRON_SECRET>`. You should get `{"redis":"ok","subsCount":0,...}` (or `subsCount` &gt; 0 if someone already subscribed).
-- **End-to-end:** On the **production** URL, click “Enable notifications”, allow in the browser, optionally set a reminder time 1–2 minutes from now. Close the tab. After that minute, you should get a push (and `check-redis` should show `subsCount: 1`).
+- **End-to-end:** On the **production** URL, click “Enable notifications”, allow in the browser, set a reminder time 1–2 minutes from now. Close the tab. After that minute (once your external cron has run), you should get a push (and `check-redis` should show `subsCount: 1`).
 
-**3. Optional: manual cron test**
+**4. Optional: manual cron test**
 
 To trigger the cron by hand (e.g. to test without waiting):  
 `curl -H "Authorization: Bearer YOUR_CRON_SECRET" "https://your-app.vercel.app/api/send-due-notifications"`  
