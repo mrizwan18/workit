@@ -2,7 +2,7 @@
 
 Minimal PWA: daily workout check-in, streak, zero friction. No calorie tracking, no social, no fancy analytics.
 
-<img width="1508" height="765" alt="image" src="https://github.com/user-attachments/assets/264a96ba-cd55-4dd6-8a81-da8f59e2c29c" />
+<img width="1508" height="770" alt="image" src="https://github.com/user-attachments/assets/db7ca038-5b6a-4725-a014-5dd716fe85f0" />
 <img width="1511" height="768" alt="image" src="https://github.com/user-attachments/assets/15bd9548-dc5d-4f2f-a556-df9945cf3ac3" />
 <img width="1508" height="767" alt="image" src="https://github.com/user-attachments/assets/d47f7a1b-c8fc-46d6-9e10-04da2b98b6e0" />
 
