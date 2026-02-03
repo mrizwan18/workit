@@ -126,6 +126,7 @@ export default function HomePage() {
     setNotificationPermission(perm);
     if (perm === "granted") {
       scheduleTodayNotifications();
+      await new Promise((r) => setTimeout(r, 800));
       const result = await subscribeToPush();
       if (!result.ok) setPushSubscribeError(result.error);
     }
@@ -312,16 +313,20 @@ export default function HomePage() {
                   Notifications enabled
                   {reminderTimes && ` (${reminderTimes.morning}, ${reminderTimes.beforeWork}, ${reminderTimes.streakRisk})`}
                 </p>
-                <p className="mt-0.5 text-xs text-slate-500">Reminders fire at these times (including when the app is closed).</p>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  {pushSubscribeError
+                    ? "In-app reminders are set. Fix below to get reminders when the app is closed."
+                    : "Reminders fire at these times (including when the app is closed)."}
+                </p>
                 {pushSubscribeError && (
                   <div className="mt-2 text-sm text-amber-400">
-                    <p>{pushSubscribeError}</p>
-                    <p className="mt-1">
-                      <button type="button" onClick={handleRetryPushSubscribe} className="underline">Try again</button>
+                    <p className="text-amber-400/95">{pushSubscribeError}</p>
+                    <p className="mt-1.5 text-xs text-slate-400">
+                      <button type="button" onClick={handleRetryPushSubscribe} className="underline hover:text-slate-300">Try again</button>
                       {" · "}
-                      <button type="button" onClick={scheduleReloadAndRetryPush} className="underline">Reload and try again</button>
+                      <button type="button" onClick={scheduleReloadAndRetryPush} className="underline hover:text-slate-300">Reload and try again</button>
                       {" · "}
-                      <button type="button" onClick={handleResetNotifications} className="underline" disabled={resettingPush}>
+                      <button type="button" onClick={handleResetNotifications} className="underline hover:text-slate-300" disabled={resettingPush}>
                         {resettingPush ? "Resetting…" : "Reset notifications"}
                       </button>
                     </p>

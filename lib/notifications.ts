@@ -195,6 +195,27 @@ export function consumePushErrorAfterReload(): string | null {
   }
 }
 
+/** Wait for the service worker to control this page (needed for push on mobile). Polls up to maxWaitMs. */
+function waitForServiceWorkerController(maxWaitMs: number): Promise<boolean> {
+  if (typeof window === "undefined" || !("serviceWorker" in navigator)) return Promise.resolve(false);
+  if (navigator.serviceWorker.controller) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    const start = Date.now();
+    const check = () => {
+      if (navigator.serviceWorker.controller) {
+        resolve(true);
+        return;
+      }
+      if (Date.now() - start >= maxWaitMs) {
+        resolve(false);
+        return;
+      }
+      setTimeout(check, 500);
+    };
+    check();
+  });
+}
+
 /** Subscribe to Web Push and register with the backend for background reminders. */
 export async function subscribeToPush(): Promise<SubscribeToPushResult> {
   if (typeof window === "undefined" || !("serviceWorker" in navigator) || !("PushManager" in window)) {
@@ -203,6 +224,16 @@ export async function subscribeToPush(): Promise<SubscribeToPushResult> {
   if (Notification.permission !== "granted") {
     return { ok: false, error: "Permission not granted" };
   }
+
+  await navigator.serviceWorker.ready;
+  const hasController = await waitForServiceWorkerController(8000);
+  if (!hasController) {
+    return {
+      ok: false,
+      error: "App not ready for push yet. Reload the page and enable notifications again, or add the app to your home screen and open from there.",
+    };
+  }
+
   const reg = await navigator.serviceWorker.ready;
   if (!reg.pushManager) {
     return { ok: false, error: "PushManager not available" };
@@ -228,24 +259,29 @@ export async function subscribeToPush(): Promise<SubscribeToPushResult> {
     });
   };
 
-  let sub: PushSubscription;
-  try {
-    sub = await doSubscribe();
-  } catch (e1) {
-    const msg1 = e1 instanceof Error ? e1.message : String(e1);
-    if (!navigator.serviceWorker.controller) {
-      await new Promise((r) => setTimeout(r, 2000));
-      try {
-        sub = await doSubscribe();
-      } catch (e2) {
-        return {
-          ok: false,
-          error: `Subscribe failed: ${e2 instanceof Error ? e2.message : String(e2)}. Try adding the app to your home screen and opening it from there, or reload the page and try again.`,
-        };
-      }
-    } else {
-      return { ok: false, error: `Subscribe failed: ${msg1}` };
+  const delays = [0, 2000, 4000];
+  let lastError: string = "";
+  let sub: PushSubscription | null = null;
+
+  for (const delay of delays) {
+    if (delay > 0) await new Promise((r) => setTimeout(r, delay));
+    try {
+      sub = await doSubscribe();
+      break;
+    } catch (e) {
+      lastError = e instanceof Error ? e.message : String(e);
     }
+  }
+
+  if (!sub) {
+    const hint =
+      /push service|registration failed|GCM|FCM/i.test(lastError)
+        ? " Open the app in Chrome (Android) or Safari (iOS), or add to home screen and open from there—in-app browsers often don’t support push."
+        : "";
+    return {
+      ok: false,
+      error: `Subscribe failed: ${lastError}.${hint}`,
+    };
   }
 
   try {
