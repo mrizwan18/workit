@@ -30,22 +30,37 @@ export function isRedisConfigured(): boolean {
 }
 
 export async function getStoredSubscriptions(): Promise<StoredSubscription[]> {
+  const out = await getStoredSubscriptionsOrError();
+  return out.subs;
+}
+
+/** For debugging: same as getStoredSubscriptions but returns the error instead of swallowing it. */
+export async function getStoredSubscriptionsOrError(): Promise<{
+  subs: StoredSubscription[];
+  error?: string;
+}> {
   const redis = getRedis();
-  if (!redis) return [];
+  if (!redis) return { subs: [], error: "redis_null" };
   try {
-    const raw = await redis.get<string>(REDIS_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw as string);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
+    const raw = await redis.get<unknown>(REDIS_KEY);
+    if (raw == null) return { subs: [] };
+    const parsed = Array.isArray(raw) ? raw : typeof raw === "string" ? JSON.parse(raw) : null;
+    return { subs: Array.isArray(parsed) ? parsed : [] };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { subs: [], error: msg };
   }
 }
 
-export async function saveSubscriptions(subs: StoredSubscription[]): Promise<void> {
+export async function saveSubscriptions(subs: StoredSubscription[]): Promise<boolean> {
   const redis = getRedis();
-  if (!redis) return;
-  await redis.set(REDIS_KEY, JSON.stringify(subs));
+  if (!redis) return false;
+  try {
+    await redis.set(REDIS_KEY, JSON.stringify(subs));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function isPushConfigured(): boolean {

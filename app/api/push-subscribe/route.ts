@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getStoredSubscriptions, saveSubscriptions, isPushConfigured, isRedisConfigured, type StoredSubscription } from "@/lib/push-server";
+import { getStoredSubscriptions, getStoredSubscriptionsOrError, saveSubscriptions, isPushConfigured, type StoredSubscription } from "@/lib/push-server";
 
 type NotificationTimes = { morning: string; beforeWork: string; streakRisk: string };
 
@@ -64,15 +64,18 @@ export async function POST(request: NextRequest) {
   };
   const next = subs.filter((s) => s.endpoint !== endpoint);
   next.push(entry);
-  await saveSubscriptions(next);
+  const writeOk = await saveSubscriptions(next);
 
   // Read back so client can confirm the write (same Redis check-redis uses)
-  const after = await getStoredSubscriptions();
-  const res: { ok: boolean; subsCount: number; debug?: string } = { ok: true, subsCount: after.length };
+  const { subs: after, error: readError } = await getStoredSubscriptionsOrError();
+  const res: { ok: boolean; subsCount: number; debug?: string; writeOk?: boolean; readError?: string } = {
+    ok: true,
+    subsCount: after.length,
+    writeOk,
+  };
   if (after.length === 0 && next.length > 0) {
-    res.debug = isRedisConfigured()
-      ? "redis_ok_but_read_empty"
-      : "redis_null_in_this_request";
+    res.debug = "redis_ok_but_read_empty";
+    if (readError) res.readError = readError;
   }
   return NextResponse.json(res);
 }
