@@ -145,8 +145,9 @@ export async function subscribeToPush(): Promise<SubscribeToPushResult> {
       try {
         sub = await doSubscribe();
       } catch (e2) {
+        const e = e2 as any;
         const msg2 = e2 instanceof Error ? e2.message : String(e2);
-        return { ok: false, error: `Subscribe failed: ${msg2}. Try adding the app to your home screen and opening it from there.` };
+        return { ok: false, error: `Subscribe failed: ${e?.name || "Error"} - ${e?.message || String(e2)}` };
       }
     } else {
       return { ok: false, error: `Subscribe failed: ${msg1}` };
